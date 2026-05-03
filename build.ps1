@@ -67,9 +67,27 @@ foreach ($tool in @($aapt, $d8, $zipalign, $apksigner, $androidJar)) {
     }
 }
 
-foreach ($target in @('build\gen', 'build\classes', 'build\dex')) {
-    $full = Join-Path $root $target
-    if ($full -notlike "$root\build\*") {
+$buildDir = Join-Path $root 'build'
+$genDir = Join-Path $buildDir 'gen'
+$classesDir = Join-Path $buildDir 'classes'
+$dexDir = Join-Path $buildDir 'dex'
+$sourcesFile = Join-Path $buildDir 'sources.txt'
+$buildDirFull = [System.IO.Path]::GetFullPath($buildDir).TrimEnd(
+    [System.IO.Path]::DirectorySeparatorChar,
+    [System.IO.Path]::AltDirectorySeparatorChar
+)
+$pathComparison = if ($isWindowsHost) {
+    [System.StringComparison]::OrdinalIgnoreCase
+} else {
+    [System.StringComparison]::Ordinal
+}
+
+foreach ($full in @($genDir, $classesDir, $dexDir)) {
+    $full = [System.IO.Path]::GetFullPath($full).TrimEnd(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
+    )
+    if (!$full.StartsWith($buildDirFull + [System.IO.Path]::DirectorySeparatorChar, $pathComparison)) {
         throw "Refusing to clean $full"
     }
     if (Test-Path -LiteralPath $full) {
@@ -78,28 +96,30 @@ foreach ($target in @('build\gen', 'build\classes', 'build\dex')) {
     New-Item -ItemType Directory -Force -Path $full | Out-Null
 }
 
-& $aapt package -f -m -J build\gen -M app\src\main\AndroidManifest.xml -S app\src\main\res -I $androidJar
+& $aapt package -f -m -J $genDir -M app/src/main/AndroidManifest.xml -S app/src/main/res -I $androidJar
 Check-Last 'aapt generate R'
 
 $sources = @()
 $sources += Get-ChildItem -Recurse -File app\src\main\java -Filter *.java | ForEach-Object { $_.FullName.Substring($root.Length + 1) }
-$sources += Get-ChildItem -Recurse -File build\gen -Filter *.java | ForEach-Object { $_.FullName.Substring($root.Length + 1) }
-[System.IO.File]::WriteAllLines((Join-Path $root 'build\sources.txt'), [string[]]$sources, (New-Object System.Text.UTF8Encoding($false)))
+$sources += Get-ChildItem -Recurse -File $genDir -Filter *.java | ForEach-Object { $_.FullName.Substring($root.Length + 1) }
+[System.IO.File]::WriteAllLines($sourcesFile, [string[]]$sources, (New-Object System.Text.UTF8Encoding($false)))
 
-javac -encoding UTF-8 -source 8 -target 8 -classpath $androidJar -d build\classes '@build\sources.txt'
+javac -encoding UTF-8 -source 8 -target 8 -classpath $androidJar -d $classesDir "@$sourcesFile"
 Check-Last 'javac'
 
-$classFiles = Get-ChildItem -Recurse -File build\classes -Filter *.class | ForEach-Object { $_.FullName }
-& $d8 --lib $androidJar --min-api 23 --output build\dex $classFiles
+$classFiles = Get-ChildItem -Recurse -File $classesDir -Filter *.class | ForEach-Object { $_.FullName }
+& $d8 --lib $androidJar --min-api 23 --output $dexDir $classFiles
 Check-Last 'd8'
 
-& $aapt package -f -M app\src\main\AndroidManifest.xml -S app\src\main\res -I $androidJar -F build\amap_companion_unsigned.apk build\dex
+$unsignedApk = Join-Path $buildDir 'amap_companion_unsigned.apk'
+$alignedApk = Join-Path $buildDir 'amap_companion_aligned.apk'
+& $aapt package -f -M app/src/main/AndroidManifest.xml -S app/src/main/res -I $androidJar -F $unsignedApk $dexDir
 Check-Last 'aapt package'
 
-& $zipalign -f 4 build\amap_companion_unsigned.apk build\amap_companion_aligned.apk
+& $zipalign -f 4 $unsignedApk $alignedApk
 Check-Last 'zipalign'
 
-& $apksigner sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --out amap_companion_signed.apk build\amap_companion_aligned.apk
+& $apksigner sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --out amap_companion_signed.apk $alignedApk
 Check-Last 'apksigner sign'
 
 & $apksigner verify --verbose amap_companion_signed.apk
