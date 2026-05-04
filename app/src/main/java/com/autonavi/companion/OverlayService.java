@@ -548,7 +548,7 @@ public class OverlayService extends Service {
             int status = valueAt(statuses, i, intValue(extras, "trafficLightStatus", -1));
             int red = valueAt(reds, i, intValue(extras, "redLightCountDownSeconds", 0));
             int green = valueAt(greens, i, intValue(extras, "greenLightLastSecond", 0));
-            int seconds = red > 0 ? red : green;
+            int seconds = secondsForLight(status, red, green);
             int key = dir >= 0 ? dir : 999;
             if (seconds > 0) {
                 putLightState(nextLights, key, dir, status, red, green, seconds);
@@ -643,7 +643,7 @@ public class OverlayService extends Service {
                 object.optInt("redSeconds", object.optInt("redCountDown", 0))));
         int green = object.optInt("greenLightLastSecond", object.optInt("greenLightCountDownSeconds",
                 object.optInt("greenLightCountdownSeconds", object.optInt("greenSeconds", 0))));
-        int seconds = red > 0 ? red : green;
+        int seconds = secondsForLight(status, red, green);
         if (seconds > 0) {
             int key = dir >= 0 ? dir : 999;
             putLightState(target, key, dir, status, red, green, seconds);
@@ -702,10 +702,10 @@ public class OverlayService extends Service {
     }
 
     private boolean preferLightState(LightState candidate, LightState old) {
-        if (old.status == 1 && candidate.status != 1) {
+        if (isRedLightStatus(old.status) && !isRedLightStatus(candidate.status)) {
             return false;
         }
-        if (candidate.status == 1 && old.status != 1) {
+        if (isRedLightStatus(candidate.status) && !isRedLightStatus(old.status)) {
             return true;
         }
         return candidate.seconds > 0;
@@ -847,22 +847,47 @@ public class OverlayService extends Service {
     }
 
     private int colorForStatus(int status, int red, int green) {
-        if (red > 0) {
-            return 0xFFFF3B30;
-        }
-        if (status == 2 || status == 3 || status == 5 || status == 6 || status == 0) {
+        if (isYellowLightStatus(status)) {
             return 0xFFFFCC00;
         }
-        if (status == 4) {
+        if (isGreenLightStatus(status)) {
             return 0xFF34C759;
         }
-        if (status == 1) {
+        if (isRedLightStatus(status)) {
             return 0xFFFF3B30;
         }
         if (green > 0 && red <= 0) {
             return 0xFF34C759;
         }
+        if (red > 0) {
+            return 0xFFFF3B30;
+        }
         return 0xFFFFCC00;
+    }
+
+    private int secondsForLight(int status, int red, int green) {
+        if (isGreenLightStatus(status)) {
+            return green > 0 ? green : red;
+        }
+        if (isRedLightStatus(status)) {
+            return red > 0 ? red : green;
+        }
+        if (isYellowLightStatus(status)) {
+            return green > 0 ? green : red;
+        }
+        return green > 0 ? green : red;
+    }
+
+    private boolean isRedLightStatus(int status) {
+        return status == 1;
+    }
+
+    private boolean isGreenLightStatus(int status) {
+        return status == 4;
+    }
+
+    private boolean isYellowLightStatus(int status) {
+        return status == 0 || status == 2 || status == 3 || status == 5 || status == 6;
     }
 
     private String directionLabel(int dir) {
