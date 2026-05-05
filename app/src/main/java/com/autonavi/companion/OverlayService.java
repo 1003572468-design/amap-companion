@@ -1,7 +1,6 @@
 package com.autonavi.companion;
 
 import android.app.Notification;
-import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Presentation;
 import android.app.Service;
@@ -12,7 +11,9 @@ import android.content.IntentFilter;
 import android.hardware.display.DisplayManager;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
+import android.graphics.Point;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
@@ -33,7 +34,9 @@ import android.widget.TextView;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Array;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -93,6 +96,8 @@ public class OverlayService extends Service {
     private int navigationTurnDir = -1;
     private float overlayScale = 2f;
     private float clusterScale = 2f;
+    private final View.OnLayoutChangeListener clusterBoundsListener =
+            (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> updateClusterPosition();
 
     private final Runnable lanePoll = new Runnable() {
         @Override
@@ -391,16 +396,21 @@ public class OverlayService extends Service {
         }
         dismissClusterMirror();
         clusterDisplay = display;
-        clusterPresentation = new Presentation(this, display);
+        clusterPresentation = new Presentation(this, display, R.style.ClusterPresentationTheme);
         clusterStage = new FrameLayout(clusterPresentation.getContext());
         clusterStage.setBackgroundColor(Color.TRANSPARENT);
+        clusterStage.setClipChildren(false);
+        clusterStage.setClipToPadding(false);
+        clusterStage.addOnLayoutChangeListener(clusterBoundsListener);
         clusterPanel = buildClusterPanel(clusterPresentation.getContext());
+        clusterPanel.addOnLayoutChangeListener(clusterBoundsListener);
         clusterStage.addView(clusterPanel, clusterLayoutParams());
         clusterPresentation.setContentView(clusterStage);
         configureClusterWindow();
         try {
             clusterPresentation.show();
-            updateClusterPosition();
+            clusterStage.post(this::updateClusterPosition);
+            clusterPanel.post(this::updateClusterPosition);
             syncClusterFromMain();
             applyContentVisibilityPrefs();
             Log.d(TAG, "cluster mirror shown on display " + display.getDisplayId());
@@ -414,11 +424,10 @@ public class OverlayService extends Service {
         if (clusterPresentation == null || clusterPresentation.getWindow() == null) {
             return;
         }
-        if (canUseOverlayWindowType()) {
-            int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                    ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                    : WindowManager.LayoutParams.TYPE_SYSTEM_ALERT;
-            clusterPresentation.getWindow().setType(type);
+        clusterPresentation.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        clusterPresentation.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        if (clusterPresentation.getWindow().getDecorView() != null) {
+            clusterPresentation.getWindow().getDecorView().setBackgroundColor(Color.TRANSPARENT);
         }
         WindowManager.LayoutParams attrs = clusterPresentation.getWindow().getAttributes();
         attrs.width = WindowManager.LayoutParams.MATCH_PARENT;
@@ -429,18 +438,39 @@ public class OverlayService extends Service {
                 | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                 | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                 | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
+        attrs.format = PixelFormat.TRANSLUCENT;
         attrs.dimAmount = 0f;
         clusterPresentation.getWindow().setAttributes(attrs);
     }
 
     private boolean canUseOverlayWindowType() {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M
-                || android.provider.Settings.canDrawOverlays(this);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return true;
+        }
+        try {
+            Method method = android.provider.Settings.class
+                    .getMethod("canDrawOverlays", Context.class);
+            Object result = method.invoke(null, this);
+            return result instanceof Boolean && (Boolean) result;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private Display findClusterDisplay() {
         DisplayManager manager = (DisplayManager) getSystemService(DISPLAY_SERVICE);
         if (manager == null) {
+            return null;
+        }
+        int preferredDisplayId = MainActivity.getClusterDisplayId(this);
+        if (preferredDisplayId >= 0) {
+            Display[] displays = manager.getDisplays();
+            for (Display display : displays) {
+                if (display != null && display.getDisplayId() == preferredDisplayId) {
+                    return display;
+                }
+            }
+            Log.w(TAG, "preferred cluster display missing: " + preferredDisplayId);
             return null;
         }
         Display[] presentationDisplays = manager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION);
@@ -561,8 +591,25 @@ public class OverlayService extends Service {
             return;
         }
         FrameLayout.LayoutParams lp = clusterLayoutParams();
-        int maxX = Math.max(0, clusterStage.getWidth() - clusterPanel.getWidth());
-        int maxY = Math.max(0, clusterStage.getHeight() - clusterPanel.getHeight());
+        int stageWidth = clusterStage.getWidth();
+        int stageHeight = clusterStage.getHeight();
+        if ((stageWidth <= 0 || stageHeight <= 0) && clusterDisplay != null) {
+            Point size = new Point();
+            clusterDisplay.getRealSize(size);
+            stageWidth = size.x;
+            stageHeight = size.y;
+        }
+        int panelWidth = clusterPanel.getWidth();
+        int panelHeight = clusterPanel.getHeight();
+        if (panelWidth <= 0 || panelHeight <= 0) {
+            int widthSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+            int heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+            clusterPanel.measure(widthSpec, heightSpec);
+            panelWidth = Math.max(panelWidth, clusterPanel.getMeasuredWidth());
+            panelHeight = Math.max(panelHeight, clusterPanel.getMeasuredHeight());
+        }
+        int maxX = Math.max(0, stageWidth - panelWidth);
+        int maxY = Math.max(0, stageHeight - panelHeight);
         if (maxX > 0) {
             lp.leftMargin = Math.min(lp.leftMargin, maxX);
         }
@@ -573,6 +620,12 @@ public class OverlayService extends Service {
     }
 
     private void dismissClusterMirror() {
+        if (clusterStage != null) {
+            clusterStage.removeOnLayoutChangeListener(clusterBoundsListener);
+        }
+        if (clusterPanel != null) {
+            clusterPanel.removeOnLayoutChangeListener(clusterBoundsListener);
+        }
         if (clusterPresentation != null) {
             try {
                 clusterPresentation.dismiss();
@@ -2488,13 +2541,11 @@ public class OverlayService extends Service {
     private Notification buildNotification() {
         Notification.Builder builder;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID, "AMap Companion", NotificationManager.IMPORTANCE_LOW);
             NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
             if (nm != null) {
-                nm.createNotificationChannel(channel);
+                ensureNotificationChannel(nm);
             }
-            builder = new Notification.Builder(this, CHANNEL_ID);
+            builder = createNotificationBuilderWithChannel();
         } else {
             builder = new Notification.Builder(this);
         }
@@ -2504,6 +2555,28 @@ public class OverlayService extends Service {
                 .setContentText("\u76d1\u542c\u9ad8\u5fb7\u5bfc\u822a/\u5de1\u822a\u5e7f\u64ad")
                 .setOngoing(true)
                 .build();
+    }
+
+    private void ensureNotificationChannel(NotificationManager notificationManager) {
+        try {
+            Class<?> channelClass = Class.forName("android.app.NotificationChannel");
+            Constructor<?> ctor = channelClass.getConstructor(String.class, CharSequence.class, int.class);
+            Object channel = ctor.newInstance(CHANNEL_ID, "AMap Companion", 2);
+            notificationManager.getClass()
+                    .getMethod("createNotificationChannel", channelClass)
+                    .invoke(notificationManager, channel);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private Notification.Builder createNotificationBuilderWithChannel() {
+        try {
+            Constructor<Notification.Builder> ctor =
+                    Notification.Builder.class.getConstructor(Context.class, String.class);
+            return ctor.newInstance(this, CHANNEL_ID);
+        } catch (Throwable ignored) {
+            return new Notification.Builder(this);
+        }
     }
 
     private int dp(int value) {

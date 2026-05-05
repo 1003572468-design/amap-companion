@@ -2,11 +2,13 @@ package com.autonavi.companion;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.hardware.display.DisplayManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -15,6 +17,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.text.TextUtils;
+import android.view.Display;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -45,6 +48,7 @@ public class MainActivity extends Activity {
     static final String KEY_CLUSTER_X = "cluster_x";
     static final String KEY_CLUSTER_Y = "cluster_y";
     static final String KEY_CLUSTER_SCALE_PERCENT = "cluster_scale_percent";
+    static final String KEY_CLUSTER_DISPLAY_ID = "cluster_display_id";
     static final String KEY_SHOW_MODE = "show_mode";
     static final String KEY_SHOW_TURN = "show_turn";
     static final String KEY_SHOW_LANE = "show_lane";
@@ -83,6 +87,7 @@ public class MainActivity extends Activity {
     private TextView updateText;
     private TextView overlayScaleText;
     private TextView clusterScaleText;
+    private TextView clusterDisplayText;
     private TextView overlayBackgroundOpacityText;
     private FrameLayout overlayPreviewStage;
     private LinearLayout overlayPreviewPanel;
@@ -311,6 +316,16 @@ public class MainActivity extends Activity {
         title.setTextColor(0xFF111827);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         box.addView(title, new LinearLayout.LayoutParams(-1, -2));
+
+        clusterDisplayText = new TextView(this);
+        clusterDisplayText.setTextSize(13f);
+        clusterDisplayText.setTextColor(0xFF334155);
+        LinearLayout.LayoutParams displayTextLp = new LinearLayout.LayoutParams(-1, -2);
+        displayTextLp.setMargins(0, dp(8), 0, 0);
+        box.addView(clusterDisplayText, displayTextLp);
+        updateClusterDisplayText();
+
+        box.addView(button("\u9009\u62e9\u6295\u5c4f\u5c4f\u5e55", v -> chooseClusterDisplay(), 0xFF334155));
 
         clusterScaleText = new TextView(this);
         clusterScaleText.setTextSize(13f);
@@ -841,7 +856,11 @@ public class MainActivity extends Activity {
     private void startOverlayService() {
         Intent intent = new Intent(this, OverlayService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent);
+            try {
+                Context.class.getMethod("startForegroundService", Intent.class).invoke(this, intent);
+            } catch (Throwable ignored) {
+                startService(intent);
+            }
         } else {
             startService(intent);
         }
@@ -891,6 +910,35 @@ public class MainActivity extends Activity {
         if (launch != null) {
             startActivity(launch);
         }
+    }
+
+    private void chooseClusterDisplay() {
+        ArrayList<DisplayChoice> choices = getClusterDisplayChoices();
+        String[] labels = new String[choices.size() + 1];
+        labels[0] = "\u81ea\u52a8\u9009\u62e9\n\u4f18\u5148\u4f7f\u7528\u7cfb\u7edf\u8ba4\u5b9a\u7684\u526f\u5c4f";
+        for (int i = 0; i < choices.size(); i++) {
+            DisplayChoice choice = choices.get(i);
+            labels[i + 1] = choice.label + "\nID " + choice.displayId;
+        }
+        int currentId = getClusterDisplayId(this);
+        int checked = 0;
+        for (int i = 0; i < choices.size(); i++) {
+            if (choices.get(i).displayId == currentId) {
+                checked = i + 1;
+                break;
+            }
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("\u9009\u62e9\u6295\u5c4f\u5c4f\u5e55")
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    saveClusterDisplayId(which == 0 ? -1 : choices.get(which - 1).displayId);
+                    updateClusterDisplayText();
+                    startOverlayService();
+                    notifyClusterMirrorChanged();
+                    dialog.dismiss();
+                })
+                .setNegativeButton("\u53d6\u6d88", null)
+                .show();
     }
 
     private void openUrl(String url) {
@@ -1279,6 +1327,58 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void updateClusterDisplayText() {
+        if (clusterDisplayText == null) {
+            return;
+        }
+        int selectedId = getClusterDisplayId(this);
+        if (selectedId < 0) {
+            clusterDisplayText.setText("\u6295\u5c4f\u5c4f\u5e55 \u00b7 \u81ea\u52a8\u9009\u62e9");
+            return;
+        }
+        DisplayChoice selected = null;
+        ArrayList<DisplayChoice> choices = getClusterDisplayChoices();
+        for (DisplayChoice choice : choices) {
+            if (choice.displayId == selectedId) {
+                selected = choice;
+                break;
+            }
+        }
+        if (selected != null) {
+            clusterDisplayText.setText("\u6295\u5c4f\u5c4f\u5e55 \u00b7 " + selected.label + " (ID " + selected.displayId + ")");
+        } else {
+            clusterDisplayText.setText("\u6295\u5c4f\u5c4f\u5e55 \u00b7 \u5df2\u6307\u5b9a ID " + selectedId + "\uff08\u5f53\u524d\u672a\u68c0\u6d4b\u5230\uff09");
+        }
+    }
+
+    private void saveClusterDisplayId(int displayId) {
+        getSharedPreferences(PREFS, MODE_PRIVATE)
+                .edit()
+                .putInt(KEY_CLUSTER_DISPLAY_ID, displayId)
+                .apply();
+    }
+
+    private ArrayList<DisplayChoice> getClusterDisplayChoices() {
+        ArrayList<DisplayChoice> choices = new ArrayList<>();
+        DisplayManager manager = (DisplayManager) getSystemService(DISPLAY_SERVICE);
+        if (manager == null) {
+            return choices;
+        }
+        Display[] displays = manager.getDisplays();
+        for (Display display : displays) {
+            if (display == null || display.getDisplayId() == Display.DEFAULT_DISPLAY) {
+                continue;
+            }
+            String name = display.getName();
+            if (TextUtils.isEmpty(name)) {
+                name = "\u526f\u5c4f";
+            }
+            choices.add(new DisplayChoice(display.getDisplayId(), name));
+        }
+        Collections.sort(choices, Comparator.comparingInt(choice -> choice.displayId));
+        return choices;
+    }
+
     private void moveClusterBy(int dx, int dy) {
         SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         int x = Math.max(0, prefs.getInt(KEY_CLUSTER_X, dp(24)) + dx);
@@ -1317,6 +1417,11 @@ public class MainActivity extends Activity {
 
     static float getClusterScale(android.content.Context context) {
         return getClusterScalePercent(context) / 100f;
+    }
+
+    static int getClusterDisplayId(android.content.Context context) {
+        return context.getSharedPreferences(PREFS, MODE_PRIVATE)
+                .getInt(KEY_CLUSTER_DISPLAY_ID, -1);
     }
 
     static int getClusterX(android.content.Context context, int defaultValue) {
@@ -1424,6 +1529,16 @@ public class MainActivity extends Activity {
             this.packageName = packageName;
             this.system = system;
             this.launchable = launchable;
+        }
+    }
+
+    private static final class DisplayChoice {
+        final int displayId;
+        final String label;
+
+        DisplayChoice(int displayId, String label) {
+            this.displayId = displayId;
+            this.label = label;
         }
     }
 }
