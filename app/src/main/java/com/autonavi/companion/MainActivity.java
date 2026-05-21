@@ -1201,7 +1201,7 @@ public class MainActivity extends Activity {
                     && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                 permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
             }
-            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2
+            if (Build.VERSION.SDK_INT <= 32
                     && checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                 permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE);
             }
