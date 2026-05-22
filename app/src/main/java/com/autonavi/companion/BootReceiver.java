@@ -14,8 +14,7 @@ public class BootReceiver extends BroadcastReceiver {
             return;
         }
         String action = intent == null ? "" : intent.getAction();
-        if (Intent.ACTION_BOOT_COMPLETED.equals(action)
-                || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
+        if (Intent.ACTION_BOOT_COMPLETED.equals(action)) {
             if (!MainActivity.isAutoStartEnabled(context)
                     && !MainActivity.isShowMainWhenTargetForegroundEnabled(context)) {
                 return;

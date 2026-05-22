@@ -142,7 +142,6 @@ public class MainActivity extends Activity {
         persistDefaultUpdateUrl();
         migrateOverlayStylePrefs();
         setContentView(buildContent());
-        startOverlayService();
         targetText.postDelayed(() -> {
             checkForUpdates(false);
         }, 2000L);
@@ -1055,6 +1054,20 @@ public class MainActivity extends Activity {
     }
 
     private void startOverlayService() {
+        if (!Settings.canDrawOverlays(this)) {
+            new AlertDialog.Builder(this)
+                    .setTitle("\u60ac\u6d6e\u7a97\u6743\u9650")
+                    .setMessage("\u4f34\u4fa3\u670d\u52a1\u9700\u8981\u60ac\u6d6e\u7a97\u6743\u9650\uff0c\u8bf7\u5728\u63a5\u4e0b\u6765\u7684\u754c\u9762\u4e2d\u5141\u8bb8\u201c\u663e\u793a\u5728\u5176\u4ed6\u5e94\u7528\u7684\u4e0a\u5c42\u201d\u3002")
+                    .setPositiveButton("\u53bb\u8bbe\u7f6e", (d, w) -> {
+                        try {
+                            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    Uri.parse("package:" + getPackageName())));
+                        } catch (Throwable ignored) {}
+                    })
+                    .setNegativeButton("\u53d6\u6d88", null)
+                    .show();
+            return;
+        }
         startOverlayService(this);
     }
 
@@ -1072,7 +1085,12 @@ public class MainActivity extends Activity {
     }
 
     private void startCompanionService() {
-        saveMainOverlayEnabled(true);
+        if (!isMainOverlayEnabled(this)
+                && !isClusterMirrorEnabled(this)
+                && !isShowMainWhenTargetForegroundEnabled(this)) {
+            Toast.makeText(this, "\u8bf7\u5148\u52fe\u9009\u4e3b\u5c4f\u60ac\u6d6e\u7a97\u3001\u526f\u5c4f\u60ac\u6d6e\u7a97\u6216\u9ad8\u5fb7\u5e7f\u64ad\u81ea\u52a8\u663e\u793a", Toast.LENGTH_LONG).show();
+            return;
+        }
         startOverlayService();
         notifyMainOverlayChanged();
         notifyClusterMirrorChanged();
@@ -1080,8 +1098,6 @@ public class MainActivity extends Activity {
     }
 
     private void stopCompanionService() {
-        saveMainOverlayEnabled(false);
-        saveClusterMirrorEnabled(false);
         saveBehaviorEnabled(KEY_SHOW_MAIN_WHEN_TARGET_FOREGROUND, false);
         notifyMainOverlayChanged();
         notifyClusterMirrorChanged();
@@ -1678,8 +1694,13 @@ public class MainActivity extends Activity {
                 Toast.makeText(this, "请为 AMap Companion 开启使用情况访问权限", Toast.LENGTH_LONG).show();
                 openUsageAccessSettings();
             }
-            startOverlayService();
+            if (isChecked) {
+                startOverlayService();
+            }
             notifyDisplayPolicyChanged();
+            if (!isChecked) {
+                stopServiceIfNoVisuals();
+            }
         });
         return checkBox;
     }
@@ -1699,11 +1720,15 @@ public class MainActivity extends Activity {
         checkBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (KEY_CLUSTER_MIRROR_ENABLED.equals(key)) {
                 saveClusterMirrorEnabled(isChecked);
-                startOverlayService();
+                if (isChecked) {
+                    startOverlayService();
+                }
                 notifyClusterMirrorChanged();
             } else {
                 saveMainOverlayEnabled(isChecked);
-                startOverlayService();
+                if (isChecked) {
+                    startOverlayService();
+                }
                 notifyMainOverlayChanged();
             }
             stopServiceIfNoVisuals();
@@ -2039,7 +2064,7 @@ public class MainActivity extends Activity {
 
     static boolean isMainOverlayEnabled(android.content.Context context) {
         return context.getSharedPreferences(PREFS, MODE_PRIVATE)
-                .getBoolean(KEY_MAIN_OVERLAY_ENABLED, true);
+                .getBoolean(KEY_MAIN_OVERLAY_ENABLED, false);
     }
 
     static boolean isClusterMirrorEnabled(android.content.Context context) {

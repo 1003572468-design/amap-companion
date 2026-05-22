@@ -3,7 +3,6 @@ package com.autonavi.companion;
 import android.app.ActivityManager;
 import android.app.Notification;
 import android.app.NotificationManager;
-import android.app.Presentation;
 import android.app.Service;
 import android.app.usage.UsageEvents;
 import android.app.usage.UsageStats;
@@ -62,6 +61,7 @@ public class OverlayService extends Service {
     private static final long DISPLAY_POLICY_POLL_MS = 1500L;
     private static final long NAVIGATION_ACTIVE_TTL_MS = 12000L;
     private static final long TARGET_BROADCAST_ACTIVE_TTL_MS = 300000L;
+    private static final float MAX_CLUSTER_DASHBOARD_SCALE = 1.15f;
     private static final Pattern CAMERA_LIGHT_PATTERN = Pattern.compile(
             "CameraLightInfo\\{([^}]*)\\}");
 
@@ -89,8 +89,9 @@ public class OverlayService extends Service {
     private TextView alertCaptionText;
     private TextView alertText;
     private TextView detailText;
-    private Presentation clusterPresentation;
-    private FrameLayout clusterStage;
+    private Context clusterContext;
+    private WindowManager clusterWindowManager;
+    private WindowManager.LayoutParams clusterParams;
     private LinearLayout clusterPanel;
     private LinearLayout clusterModeRow;
     private TextView clusterModeText;
@@ -122,6 +123,11 @@ public class OverlayService extends Service {
     private int downX;
     private int downY;
     private boolean dragging;
+    private float clusterDownRawX;
+    private float clusterDownRawY;
+    private int clusterDownX;
+    private int clusterDownY;
+    private boolean clusterDragging;
     private String lastDetailedMode;
     private String currentModeLabel = "";
     private String currentRoadName = "";
@@ -135,6 +141,8 @@ public class OverlayService extends Service {
     private int navigationTurnDir = -1;
     private float overlayScale = 2f;
     private float clusterScale = 2f;
+    private float activeDensity = -1f;
+    private boolean onCreateDelayed;
     private boolean targetAppForeground;
     private boolean targetBroadcastActive;
     private boolean navigationOrCruiseActive;
@@ -190,21 +198,28 @@ public class OverlayService extends Service {
         super.onCreate();
         startForeground(1, buildNotification());
         registerAmapReceivers();
-        ensureOverlay();
-        ensureClusterMirror();
         stopSelfIfNoVisuals();
         if (shouldRequestAmapData()) {
             requestLaneInfo();
         }
         mainHandler.postDelayed(lanePoll, 6000L);
         mainHandler.post(displayPolicyPoll);
+        onCreateDelayed = true;
+        mainHandler.postDelayed(() -> {
+            onCreateDelayed = false;
+            ensureOverlay();
+            ensureClusterMirror();
+            stopSelfIfNoVisuals();
+        }, 800);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        ensureOverlay();
-        ensureClusterMirror();
-        stopSelfIfNoVisuals();
+        if (!onCreateDelayed) {
+            ensureOverlay();
+            ensureClusterMirror();
+            stopSelfIfNoVisuals();
+        }
         if (shouldRequestAmapData()) {
             requestLaneInfo();
         }
@@ -270,9 +285,7 @@ public class OverlayService extends Service {
 
         overlayScale = MainActivity.getOverlayScale(this);
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        panel = MainActivity.isNewOverlayUiEnabled(this)
-                ? buildDashboardPanel(this, overlayScale, false)
-                : buildClassicPanel(this, overlayScale, false);
+        panel = buildPanelForContext(this, overlayScale, false);
 
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -282,11 +295,21 @@ public class OverlayService extends Service {
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                        | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                        | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
                 PixelFormat.TRANSLUCENT);
         params.gravity = Gravity.TOP | Gravity.LEFT;
         params.x = getSavedOverlayX();
         params.y = getSavedOverlayY();
+
+        android.graphics.Point screenSize = new android.graphics.Point();
+        windowManager.getDefaultDisplay().getRealSize(screenSize);
+        if (screenSize.x > 0) {
+            params.x = Math.max(0, Math.min(params.x, Math.max(0, screenSize.x - 100)));
+        }
+        if (screenSize.y > 0) {
+            params.y = Math.max(0, Math.min(params.y, Math.max(0, screenSize.y - 100)));
+        }
 
         panel.setOnTouchListener((v, event) -> {
             switch (event.getActionMasked()) {
@@ -324,16 +347,26 @@ public class OverlayService extends Service {
 
     private void syncMainOverlayAttachment() {
         if (windowManager == null || panel == null || params == null) {
+            Log.d(TAG, "syncMainOverlayAttachment: null check failed wm=" + (windowManager != null) + " panel=" + (panel != null) + " params=" + (params != null));
             return;
         }
         boolean enabled = (MainActivity.isMainOverlayEnabled(this)
                 || shouldShowMainOverlayForTargetBroadcast())
                 && !shouldHideMainOverlayForTargetForeground();
         boolean attached = panel.getParent() != null;
+        Log.d(TAG, "syncMainOverlayAttachment: enabled=" + enabled + " attached=" + attached);
         if (enabled && !attached) {
             try {
                 windowManager.addView(panel, params);
                 Log.d(TAG, "overlay added");
+                mainHandler.postDelayed(() -> {
+                    if (params != null && panel != null && panel.getParent() != null) {
+                        params.flags &= ~WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
+                        try {
+                            windowManager.updateViewLayout(panel, params);
+                        } catch (Throwable ignored) {}
+                    }
+                }, 4000);
             } catch (Throwable t) {
                 Log.e(TAG, "overlay add failed", t);
             }
@@ -361,9 +394,6 @@ public class OverlayService extends Service {
             dismissClusterMirror();
             return;
         }
-        float nextClusterScale = MainActivity.getClusterScale(this);
-        boolean scaleChanged = Math.abs(nextClusterScale - clusterScale) > 0.001f;
-        clusterScale = nextClusterScale;
         activateClusterBridge();
         Display display = findClusterDisplay();
         if (display == null) {
@@ -379,60 +409,109 @@ public class OverlayService extends Service {
             }
             return;
         }
+        float requestedClusterScale = MainActivity.getClusterScale(this);
+        float nextClusterScale = resolveClusterScaleForDisplay(display, requestedClusterScale);
+        boolean scaleChanged = Math.abs(nextClusterScale - clusterScale) > 0.001f;
         clusterMirrorRetryCount = 0;
-        if (clusterPresentation != null && clusterDisplay != null
+        if (clusterPanel != null && clusterDisplay != null
                 && clusterDisplay.getDisplayId() == display.getDisplayId()
                 && !scaleChanged) {
             updateClusterPosition();
             return;
         }
         dismissClusterMirror();
+        clusterScale = nextClusterScale;
         clusterDisplay = display;
-        clusterPresentation = new Presentation(this, display, R.style.ClusterPresentationTheme);
-        clusterStage = new FrameLayout(clusterPresentation.getContext());
-        clusterStage.setBackgroundColor(Color.TRANSPARENT);
-        clusterStage.setClipChildren(false);
-        clusterStage.setClipToPadding(false);
-        clusterStage.addOnLayoutChangeListener(clusterBoundsListener);
-        clusterPanel = buildClusterPanel(clusterPresentation.getContext());
-        clusterPanel.addOnLayoutChangeListener(clusterBoundsListener);
-        clusterStage.addView(clusterPanel, clusterLayoutParams());
-        clusterPresentation.setContentView(clusterStage);
-        configureClusterWindow();
         try {
-            clusterPresentation.show();
-            clusterStage.post(this::updateClusterPosition);
+            clusterContext = createDisplayContext(display);
+        } catch (Throwable t) {
+            Log.e(TAG, "createDisplayContext failed", t);
+            clusterContext = this;
+        }
+        if (clusterContext == null) {
+            clusterContext = this;
+        }
+        clusterWindowManager = (WindowManager) clusterContext.getSystemService(WINDOW_SERVICE);
+        if (clusterWindowManager == null) {
+            Log.e(TAG, "cluster WindowManager is null");
+            return;
+        }
+        clusterPanel = buildPanelForContext(clusterContext, clusterScale, true);
+        clusterPanel.addOnLayoutChangeListener(clusterBoundsListener);
+
+        int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                : WindowManager.LayoutParams.TYPE_PHONE;
+        clusterParams = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                type,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                        | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                PixelFormat.TRANSLUCENT);
+        clusterParams.gravity = Gravity.TOP | Gravity.LEFT;
+        clusterParams.x = getSavedClusterX();
+        clusterParams.y = getSavedClusterY();
+
+        clusterPanel.setOnTouchListener((v, event) -> {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    clusterDownRawX = event.getRawX();
+                    clusterDownRawY = event.getRawY();
+                    clusterDownX = clusterParams.x;
+                    clusterDownY = clusterParams.y;
+                    clusterDragging = false;
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    if (Math.abs(event.getRawX() - clusterDownRawX) > dp(4)
+                            || Math.abs(event.getRawY() - clusterDownRawY) > dp(4)) {
+                        clusterDragging = true;
+                    }
+                    clusterParams.x = clusterDownX + Math.round(event.getRawX() - clusterDownRawX);
+                    clusterParams.y = clusterDownY + Math.round(event.getRawY() - clusterDownRawY);
+                    updateClusterPosition();
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    saveClusterPosition();
+                    return true;
+                default:
+                    return true;
+            }
+        });
+
+        try {
+            clusterWindowManager.addView(clusterPanel, clusterParams);
             clusterPanel.post(this::updateClusterPosition);
             syncClusterFromMain();
             applyContentVisibilityPrefs();
-            Log.d(TAG, "cluster mirror shown on display " + display.getDisplayId());
+            mainHandler.postDelayed(() -> {
+                if (clusterParams != null && clusterPanel != null && clusterPanel.getParent() != null) {
+                    clusterParams.flags &= ~WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
+                    try {
+                        clusterWindowManager.updateViewLayout(clusterPanel, clusterParams);
+                    } catch (Throwable ignored) {}
+                }
+            }, 4000);
+            Log.d(TAG, "cluster mirror shown on display " + display.getDisplayId()
+                    + ", requestedScale=" + requestedClusterScale
+                    + ", appliedScale=" + clusterScale);
         } catch (Throwable t) {
-            Log.e(TAG, "cluster mirror show failed", t);
+            Log.e(TAG, "cluster mirror add failed", t);
             dismissClusterMirror();
         }
     }
 
-    private void configureClusterWindow() {
-        if (clusterPresentation == null || clusterPresentation.getWindow() == null) {
-            return;
+    private float resolveClusterScaleForDisplay(Display display, float requestedScale) {
+        if (display == null) {
+            return requestedScale;
         }
-        clusterPresentation.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        clusterPresentation.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-        if (clusterPresentation.getWindow().getDecorView() != null) {
-            clusterPresentation.getWindow().getDecorView().setBackgroundColor(Color.TRANSPARENT);
-        }
-        WindowManager.LayoutParams attrs = clusterPresentation.getWindow().getAttributes();
-        attrs.width = WindowManager.LayoutParams.MATCH_PARENT;
-        attrs.height = WindowManager.LayoutParams.MATCH_PARENT;
-        attrs.gravity = Gravity.TOP | Gravity.LEFT;
-        attrs.flags |= WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-                | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
-        attrs.format = PixelFormat.TRANSLUCENT;
-        attrs.dimAmount = 0f;
-        clusterPresentation.getWindow().setAttributes(attrs);
+        Point size = new Point();
+        display.getRealSize(size);
+        float maxByHeight = size.y > 0 ? size.y / 1080f : MAX_CLUSTER_DASHBOARD_SCALE;
+        float maxByWidth = size.x > 0 ? size.x / 1920f : MAX_CLUSTER_DASHBOARD_SCALE;
+        float maxScale = Math.max(0.3f, Math.min(MAX_CLUSTER_DASHBOARD_SCALE, Math.min(maxByHeight, maxByWidth)));
+        return Math.min(requestedScale, maxScale);
     }
 
     private boolean canUseOverlayWindowType() {
@@ -649,29 +728,6 @@ public class OverlayService extends Service {
         titleLp.setMargins(0, scaledDp(cluster ? 10 : 12, scale), 0, scaledDp(cluster ? 6 : 8, scale));
         root.addView(title, titleLp);
 
-        LinearLayout clusterColumns = null;
-        LinearLayout clusterLeftColumn = null;
-        LinearLayout clusterRightColumn = null;
-        if (cluster) {
-            clusterColumns = new LinearLayout(context);
-            clusterColumns.setOrientation(LinearLayout.HORIZONTAL);
-            clusterColumns.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-            root.addView(clusterColumns, sectionLp(scale, 6f));
-
-            clusterLeftColumn = new LinearLayout(context);
-            clusterLeftColumn.setOrientation(LinearLayout.VERTICAL);
-            clusterLeftColumn.setGravity(Gravity.CENTER_HORIZONTAL);
-            clusterColumns.addView(clusterLeftColumn, new LinearLayout.LayoutParams(-2, -2));
-
-            View columnGap = new View(context);
-            LinearLayout.LayoutParams gapLp = new LinearLayout.LayoutParams(scaledDp(8, scale), 1);
-            clusterColumns.addView(columnGap, gapLp);
-
-            clusterRightColumn = new LinearLayout(context);
-            clusterRightColumn.setOrientation(LinearLayout.VERTICAL);
-            clusterRightColumn.setGravity(Gravity.CENTER_HORIZONTAL);
-            clusterColumns.addView(clusterRightColumn, new LinearLayout.LayoutParams(-2, -2));
-        }
 
         View divider = new View(context);
         divider.setBackgroundColor(withAlpha(0xFFFFFFFF, 12));
@@ -684,11 +740,7 @@ public class OverlayService extends Service {
         summary.setBackground(createSectionBackground(scale));
         summary.setPadding(scaledDp(14, scale), scaledDp(12, scale), scaledDp(14, scale), scaledDp(12, scale));
         summary.setVisibility(View.GONE);
-        if (cluster && clusterLeftColumn != null) {
-            clusterLeftColumn.addView(summary, columnSectionLp(scale, 0f));
-        } else {
-            root.addView(summary, sectionLp(scale, 9f));
-        }
+        root.addView(summary, sectionLp(scale, cluster ? 5f : 9f));
 
         TextView heading = infoBlockText(context, "车头\n--", scale);
         summary.addView(heading, new LinearLayout.LayoutParams(-2, -2));
@@ -709,11 +761,7 @@ public class OverlayService extends Service {
         turnBox.setPadding(scaledDp(cluster ? 14 : 16, scale), scaledDp(cluster ? 10 : 12, scale),
                 scaledDp(cluster ? 14 : 16, scale), scaledDp(cluster ? 10 : 12, scale));
         turnBox.setVisibility(View.GONE);
-        if (cluster && clusterLeftColumn != null) {
-            clusterLeftColumn.addView(turnBox, columnSectionLp(scale, 0f));
-        } else {
-            root.addView(turnBox, sectionLp(scale, 9f));
-        }
+        root.addView(turnBox, sectionLp(scale, cluster ? 5f : 9f));
 
         LinearLayout turnLeft = new LinearLayout(context);
         turnLeft.setOrientation(LinearLayout.VERTICAL);
@@ -749,11 +797,7 @@ public class OverlayService extends Service {
         laneBox.setPadding(scaledDp(10, scale), scaledDp(7, scale), scaledDp(10, scale), scaledDp(8, scale));
         laneBox.setBackground(createSectionBackground(scale));
         laneBox.setVisibility(View.GONE);
-        if (cluster && clusterLeftColumn != null) {
-            clusterLeftColumn.addView(laneBox, columnSectionLp(scale, 6f));
-        } else {
-            root.addView(laneBox, sectionLp(scale, 8f));
-        }
+        root.addView(laneBox, sectionLp(scale, cluster ? 5f : 8f));
 
         LaneBarView lane = new LaneBarView(context);
         lane.setFrameScaleMultiplier(scale);
@@ -766,11 +810,7 @@ public class OverlayService extends Service {
         lights.setOrientation(LinearLayout.HORIZONTAL);
         lights.setGravity(Gravity.CENTER);
         lights.setVisibility(View.GONE);
-        if (cluster && clusterRightColumn != null) {
-            clusterRightColumn.addView(lights, columnSectionLp(scale, 0f));
-        } else {
-            root.addView(lights, sectionLp(scale, 6f));
-        }
+        root.addView(lights, sectionLp(scale, cluster ? 5f : 6f));
 
         TextView eta = new TextView(context);
         eta.setTextSize(scaledSp(14f, scale));
@@ -780,11 +820,7 @@ public class OverlayService extends Service {
         eta.setPadding(scaledDp(12, scale), scaledDp(8, scale), scaledDp(12, scale), scaledDp(8, scale));
         eta.setBackground(createSectionBackground(scale));
         eta.setVisibility(View.GONE);
-        if (cluster && clusterRightColumn != null) {
-            clusterRightColumn.addView(eta, columnSectionLp(scale, 6f));
-        } else {
-            root.addView(eta, sectionLp(scale, 8f));
-        }
+        root.addView(eta, sectionLp(scale, cluster ? 5f : 8f));
 
         LinearLayout alertBox = new LinearLayout(context);
         alertBox.setOrientation(LinearLayout.HORIZONTAL);
@@ -792,11 +828,7 @@ public class OverlayService extends Service {
         alertBox.setPadding(scaledDp(14, scale), scaledDp(10, scale), scaledDp(14, scale), scaledDp(10, scale));
         alertBox.setBackground(createSectionBackground(scale));
         alertBox.setVisibility(View.GONE);
-        if (cluster && clusterRightColumn != null) {
-            clusterRightColumn.addView(alertBox, columnSectionLp(scale, 6f));
-        } else {
-            root.addView(alertBox, sectionLp(scale, 8f));
-        }
+        root.addView(alertBox, sectionLp(scale, cluster ? 5f : 8f));
 
         TextView limitBadge = speedBadge(context, "--", scale);
         alertBox.addView(limitBadge, new LinearLayout.LayoutParams(scaledDp(58, scale), scaledDp(58, scale)));
@@ -824,11 +856,7 @@ public class OverlayService extends Service {
         detail.setPadding(scaledDp(12, scale), scaledDp(8, scale), scaledDp(12, scale), scaledDp(8, scale));
         detail.setBackground(createSectionBackground(scale));
         detail.setVisibility(View.GONE);
-        if (cluster && clusterLeftColumn != null) {
-            clusterLeftColumn.addView(detail, columnSectionLp(scale, 6f));
-        } else {
-            root.addView(detail, sectionLp(scale, 6f));
-        }
+        root.addView(detail, sectionLp(scale, cluster ? 5f : 6f));
 
         if (cluster) {
             clusterPanel = root;
@@ -899,14 +927,6 @@ public class OverlayService extends Service {
         return lp;
     }
 
-    private LinearLayout.LayoutParams columnSectionLp(float scale, float topMarginDp) {
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-        if (topMarginDp > 0f) {
-            lp.setMargins(0, scaledDp(topMarginDp, scale), 0, 0);
-        }
-        return lp;
-    }
-
     private TextView infoBlockText(Context context, String text, float scale) {
         TextView view = new TextView(context);
         view.setText(text);
@@ -954,31 +974,31 @@ public class OverlayService extends Service {
         return bg;
     }
 
-    private LinearLayout buildClusterPanel(Context context) {
-        return MainActivity.isNewOverlayUiEnabled(this)
-                ? buildDashboardPanel(context, clusterScale, true)
-                : buildClassicPanel(context, clusterScale, true);
-    }
-
-    private FrameLayout.LayoutParams clusterLayoutParams() {
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.LEFT);
-        lp.leftMargin = getSavedClusterX();
-        lp.topMargin = getSavedClusterY();
-        return lp;
+    private LinearLayout buildPanelForContext(Context context, float scale, boolean cluster) {
+        float oldDensity = activeDensity;
+        activeDensity = context.getResources().getDisplayMetrics().density;
+        try {
+            return MainActivity.isNewOverlayUiEnabled(this)
+                    ? buildDashboardPanel(context, scale, cluster)
+                    : buildClassicPanel(context, scale, cluster);
+        } finally {
+            activeDensity = oldDensity;
+        }
     }
 
     private void updateClusterPosition() {
-        if (clusterStage == null || clusterPanel == null) {
+        if (clusterWindowManager == null || clusterPanel == null || clusterParams == null) {
             return;
         }
-        FrameLayout.LayoutParams lp = clusterLayoutParams();
-        int stageWidth = clusterStage.getWidth();
-        int stageHeight = clusterStage.getHeight();
-        if ((stageWidth <= 0 || stageHeight <= 0) && clusterDisplay != null) {
+        int x = clusterParams.x;
+        int y = clusterParams.y;
+        int displayWidth = 0;
+        int displayHeight = 0;
+        if (clusterDisplay != null) {
             Point size = new Point();
             clusterDisplay.getRealSize(size);
-            stageWidth = size.x;
-            stageHeight = size.y;
+            displayWidth = size.x;
+            displayHeight = size.y;
         }
         int panelWidth = clusterPanel.getWidth();
         int panelHeight = clusterPanel.getHeight();
@@ -989,32 +1009,36 @@ public class OverlayService extends Service {
             panelWidth = Math.max(panelWidth, clusterPanel.getMeasuredWidth());
             panelHeight = Math.max(panelHeight, clusterPanel.getMeasuredHeight());
         }
-        int maxX = Math.max(0, stageWidth - panelWidth);
-        int maxY = Math.max(0, stageHeight - panelHeight);
-        if (maxX > 0) {
-            lp.leftMargin = Math.min(lp.leftMargin, maxX);
+        if (displayWidth > 0 && panelWidth > 0) {
+            x = Math.max(0, Math.min(x, displayWidth - panelWidth));
         }
-        if (maxY > 0) {
-            lp.topMargin = Math.min(lp.topMargin, maxY);
+        if (displayHeight > 0 && panelHeight > 0) {
+            y = Math.max(0, Math.min(y, displayHeight - panelHeight));
         }
-        clusterPanel.setLayoutParams(lp);
+        clusterParams.x = x;
+        clusterParams.y = y;
+        try {
+            if (clusterPanel.getParent() != null) {
+                clusterWindowManager.updateViewLayout(clusterPanel, clusterParams);
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "cluster position update failed", t);
+        }
     }
 
     private void dismissClusterMirror() {
-        if (clusterStage != null) {
-            clusterStage.removeOnLayoutChangeListener(clusterBoundsListener);
-        }
         if (clusterPanel != null) {
             clusterPanel.removeOnLayoutChangeListener(clusterBoundsListener);
         }
-        if (clusterPresentation != null) {
+        if (clusterWindowManager != null && clusterPanel != null && clusterPanel.getParent() != null) {
             try {
-                clusterPresentation.dismiss();
+                clusterWindowManager.removeView(clusterPanel);
             } catch (Throwable ignored) {
             }
         }
-        clusterPresentation = null;
-        clusterStage = null;
+        clusterContext = null;
+        clusterWindowManager = null;
+        clusterParams = null;
         clusterPanel = null;
         clusterModeRow = null;
         clusterModeText = null;
@@ -1037,6 +1061,7 @@ public class OverlayService extends Service {
         clusterAlertText = null;
         clusterDetailText = null;
         clusterDisplay = null;
+        clusterScale = -1f;
     }
 
     private void activateClusterBridge() {
@@ -1083,7 +1108,9 @@ public class OverlayService extends Service {
     }
 
     private boolean shouldHideClusterMirrorForInactiveNavigation() {
-        return MainActivity.isHideClusterWhenInactiveEnabled(this) && !navigationOrCruiseActive;
+        return MainActivity.isHideClusterWhenInactiveEnabled(this)
+                && !navigationOrCruiseActive
+                && !shouldShowMainOverlayForTargetBroadcast();
     }
 
     private boolean updateNavigationActivityFromExtras(Bundle extras) {
@@ -1261,6 +1288,17 @@ public class OverlayService extends Service {
                 .apply();
     }
 
+    private void saveClusterPosition() {
+        if (clusterParams == null) {
+            return;
+        }
+        getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE)
+                .edit()
+                .putInt(MainActivity.KEY_CLUSTER_X, clusterParams.x)
+                .putInt(MainActivity.KEY_CLUSTER_Y, clusterParams.y)
+                .apply();
+    }
+
     private void syncClusterFromMain() {
         copyTextState(modeText, clusterModeText);
         copyTextState(turnText, clusterTurnText);
@@ -1313,6 +1351,27 @@ public class OverlayService extends Service {
     }
 
     private void updateOverlayPosition() {
+        if (params != null) {
+            android.graphics.Point screenSize = new android.graphics.Point();
+            windowManager.getDefaultDisplay().getRealSize(screenSize);
+            int panelWidth = panel != null ? panel.getWidth() : 0;
+            int panelHeight = panel != null ? panel.getHeight() : 0;
+            if (panelWidth <= 0 || panelHeight <= 0) {
+                if (panel != null) {
+                    int wSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+                    int hSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+                    panel.measure(wSpec, hSpec);
+                    panelWidth = Math.max(panelWidth, panel.getMeasuredWidth());
+                    panelHeight = Math.max(panelHeight, panel.getMeasuredHeight());
+                }
+            }
+            if (screenSize.x > 0 && panelWidth > 0) {
+                params.x = Math.max(0, Math.min(params.x, screenSize.x - panelWidth));
+            }
+            if (screenSize.y > 0 && panelHeight > 0) {
+                params.y = Math.max(0, Math.min(params.y, screenSize.y - panelHeight));
+            }
+        }
         try {
             if (windowManager != null && panel != null && panel.getParent() != null) {
                 windowManager.updateViewLayout(panel, params);
@@ -1397,6 +1456,7 @@ public class OverlayService extends Service {
             return;
         }
         if (MainActivity.ACTION_CLUSTER_MIRROR_CHANGED.equals(action)) {
+            clusterScale = -1f;
             ensureClusterMirror();
             stopSelfIfNoVisuals();
             return;
@@ -2568,8 +2628,8 @@ public class OverlayService extends Service {
                 continue;
             }
             lightRow.addView(lightPill(this, state, showMainDirectionLabel, overlayScale, seconds));
-            if (clusterLightRow != null) {
-                clusterLightRow.addView(lightPill(clusterPresentation.getContext(), state,
+            if (clusterLightRow != null && clusterContext != null) {
+                clusterLightRow.addView(lightPill(clusterContext, state,
                         showClusterDirectionLabel, clusterScale, seconds));
             }
         }
@@ -2621,24 +2681,30 @@ public class OverlayService extends Service {
 
     private TextView lightPill(Context context, LightState state, boolean showDirectionLabel,
                                float scale, int seconds) {
-        TextView view = new TextView(context);
-        view.setTextColor(Color.WHITE);
-        view.setTextSize(scaledSp(20f, scale));
-        view.setTypeface(Typeface.DEFAULT_BOLD);
-        view.setGravity(Gravity.CENTER);
-        view.setMinWidth(scaledDp(inCruiseMode ? 62 : 54, scale));
-        view.setMinHeight(scaledDp(34, scale));
-        view.setPadding(scaledDp(12, scale), 0, scaledDp(12, scale), scaledDp(1, scale));
-        String label = showDirectionLabel && state.dir >= 0 ? directionLabel(state.dir) : "";
-        view.setText(label + seconds + "s");
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(state.color);
-        bg.setCornerRadius(scaledDp(18, scale));
-        view.setBackground(bg);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, scaledDp(36, scale));
-        lp.setMargins(scaledDp(3, scale), scaledDp(3, scale), scaledDp(3, scale), scaledDp(3, scale));
-        view.setLayoutParams(lp);
-        return view;
+        float oldDensity = activeDensity;
+        activeDensity = context.getResources().getDisplayMetrics().density;
+        try {
+            TextView view = new TextView(context);
+            view.setTextColor(Color.WHITE);
+            view.setTextSize(scaledSp(20f, scale));
+            view.setTypeface(Typeface.DEFAULT_BOLD);
+            view.setGravity(Gravity.CENTER);
+            view.setMinWidth(scaledDp(inCruiseMode ? 62 : 54, scale));
+            view.setMinHeight(scaledDp(34, scale));
+            view.setPadding(scaledDp(12, scale), 0, scaledDp(12, scale), scaledDp(1, scale));
+            String label = showDirectionLabel && state.dir >= 0 ? directionLabel(state.dir) : "";
+            view.setText(label + seconds + "s");
+            GradientDrawable bg = new GradientDrawable();
+            bg.setColor(state.color);
+            bg.setCornerRadius(scaledDp(18, scale));
+            view.setBackground(bg);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, scaledDp(36, scale));
+            lp.setMargins(scaledDp(3, scale), scaledDp(3, scale), scaledDp(3, scale), scaledDp(3, scale));
+            view.setLayoutParams(lp);
+            return view;
+        } finally {
+            activeDensity = oldDensity;
+        }
     }
 
     private int currentLightSeconds(LightState state, long now) {
@@ -3583,7 +3649,8 @@ public class OverlayService extends Service {
     }
 
     private int scaledDp(float value, float scale) {
-        return (int) (value * scale * getResources().getDisplayMetrics().density + 0.5f);
+        float density = activeDensity > 0f ? activeDensity : getResources().getDisplayMetrics().density;
+        return (int) (value * scale * density + 0.5f);
     }
 
     private float scaledSp(float value, float scale) {
