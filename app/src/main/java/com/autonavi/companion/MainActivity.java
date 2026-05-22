@@ -1082,9 +1082,11 @@ public class MainActivity extends Activity {
     private void stopCompanionService() {
         saveMainOverlayEnabled(false);
         saveClusterMirrorEnabled(false);
+        saveBehaviorEnabled(KEY_SHOW_MAIN_WHEN_TARGET_FOREGROUND, false);
         notifyMainOverlayChanged();
         notifyClusterMirrorChanged();
-        stopServiceIfNoVisuals();
+        notifyDisplayPolicyChanged();
+        stopService(new Intent(this, OverlayService.class));
         Toast.makeText(this, "\u5df2\u5173\u95ed\u4f34\u4fa3\u670d\u52a1", Toast.LENGTH_SHORT).show();
     }
 
