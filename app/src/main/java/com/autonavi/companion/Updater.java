@@ -8,7 +8,6 @@ import android.content.IntentFilter;
 import android.content.IntentSender;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
-import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
@@ -44,6 +43,14 @@ final class Updater {
     private static final int READ_TIMEOUT_MS = 30000;
     private static final long INSTALLER_FALLBACK_DELAY_MS = 3500L;
     private static final String APK_MIME = "application/vnd.android.package-archive";
+    private static final int SDK_LOLLIPOP = 21;
+    private static final int SDK_S = 31;
+    private static final int PENDING_INTENT_FLAG_MUTABLE = 0x02000000;
+    private static final int SESSION_MODE_FULL_INSTALL = 1;
+    private static final int PACKAGE_INSTALL_STATUS_PENDING_USER_ACTION = -1;
+    private static final int PACKAGE_INSTALL_STATUS_SUCCESS = 0;
+    private static final String PACKAGE_INSTALL_EXTRA_STATUS = "android.content.pm.extra.STATUS";
+    private static final String PACKAGE_INSTALL_EXTRA_STATUS_MESSAGE = "android.content.pm.extra.STATUS_MESSAGE";
     private static final String SHIZUKU_PACKAGE = "moe.shizuku.privileged.api";
     private static final String[] INSTALLERX_PACKAGES = {
             "com.rosan.installer.x.revived",
@@ -273,6 +280,11 @@ final class Updater {
     }
 
     private static void installViaPackageInstaller(Context context, File apk, Listener listener) throws Exception {
+        if (android.os.Build.VERSION.SDK_INT < SDK_LOLLIPOP) {
+            notify(listener, "当前系统低于 Android 5.0，跳过 PackageInstaller，尝试备用安装器...");
+            tryFallbackInstallers(context, apk, listener, "正在尝试备用安装器...");
+            return;
+        }
         if (android.os.Build.VERSION.SDK_INT >= 26
                 && !context.getPackageManager().canRequestPackageInstalls()) {
             notify(listener, "未授予“安装未知应用”权限，跳过 PackageInstaller，尝试备用安装器...");
@@ -280,22 +292,26 @@ final class Updater {
             return;
         }
 
-        PackageInstaller installer = context.getPackageManager().getPackageInstaller();
-        PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
-                PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-        int sessionId = installer.createSession(params);
+        Object installer = context.getPackageManager().getClass()
+                .getMethod("getPackageInstaller")
+                .invoke(context.getPackageManager());
+        Class<?> paramsClass = Class.forName("android.content.pm.PackageInstaller$SessionParams");
+        Object params = paramsClass.getConstructor(int.class).newInstance(SESSION_MODE_FULL_INSTALL);
+        int sessionId = (Integer) installer.getClass()
+                .getMethod("createSession", paramsClass)
+                .invoke(installer, params);
         String action = context.getPackageName() + ".INSTALL_RESULT_" + sessionId;
 
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context ctx, Intent intent) {
-                int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, -1);
-                if (status == PackageInstaller.STATUS_SUCCESS) {
+                int status = intent.getIntExtra(PACKAGE_INSTALL_EXTRA_STATUS, -999);
+                if (status == PACKAGE_INSTALL_STATUS_SUCCESS) {
                     Updater.notify(listener, "安装成功，如未立即生效请重启应用");
                     safeUnregister(ctx, this);
                     return;
                 }
-                if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+                if (status == PACKAGE_INSTALL_STATUS_PENDING_USER_ACTION) {
                     Intent confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT);
                     if (confirm != null) {
                         confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -309,7 +325,7 @@ final class Updater {
                     }
                     return;
                 }
-                String msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
+                String msg = intent.getStringExtra(PACKAGE_INSTALL_EXTRA_STATUS_MESSAGE);
                 Updater.notify(listener, "安装失败 [status=" + status + "]"
                         + (TextUtils.isEmpty(msg) ? "" : "\n" + msg));
                 safeUnregister(ctx, this);
@@ -318,30 +334,40 @@ final class Updater {
         };
         context.registerReceiver(receiver, new IntentFilter(action));
 
-        PackageInstaller.Session session = installer.openSession(sessionId);
+        Object session = installer.getClass()
+                .getMethod("openSession", int.class)
+                .invoke(installer, sessionId);
         try {
             long sizeBytes = apk.length();
             InputStream in = new FileInputStream(apk);
-            OutputStream out = session.openWrite("package", 0, sizeBytes);
+            OutputStream out = (OutputStream) session.getClass()
+                    .getMethod("openWrite", String.class, long.class, long.class)
+                    .invoke(session, "package", 0L, sizeBytes);
             byte[] buffer = new byte[64 * 1024];
             int len;
             while ((len = in.read(buffer)) != -1) {
                 out.write(buffer, 0, len);
             }
-            session.fsync(out);
+            session.getClass().getMethod("fsync", OutputStream.class).invoke(session, out);
             out.close();
             in.close();
 
+            int pendingIntentFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (android.os.Build.VERSION.SDK_INT >= SDK_S) {
+                pendingIntentFlags |= PENDING_INTENT_FLAG_MUTABLE;
+            }
             PendingIntent pendingIntent = PendingIntent.getBroadcast(
                     context,
                     sessionId,
                     new Intent(action).setPackage(context.getPackageName()),
-                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+                    pendingIntentFlags);
             IntentSender statusReceiver = pendingIntent.getIntentSender();
-            session.commit(statusReceiver);
+            session.getClass()
+                    .getMethod("commit", IntentSender.class)
+                    .invoke(session, statusReceiver);
             notify(listener, "已提交安装请求，等待系统处理...");
         } finally {
-            session.close();
+            session.getClass().getMethod("close").invoke(session);
         }
     }
 

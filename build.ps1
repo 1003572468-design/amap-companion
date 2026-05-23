@@ -119,7 +119,7 @@ javac -encoding UTF-8 -source 8 -target 8 -classpath $androidJar -d $classesDir 
 Check-Last 'javac'
 
 $classFiles = Get-ChildItem -Recurse -File $classesDir -Filter *.class | ForEach-Object { $_.FullName }
-& $d8 --lib $androidJar --min-api 23 --output $dexDir $classFiles
+& $d8 --lib $androidJar --min-api 18 --output $dexDir $classFiles
 Check-Last 'd8'
 
 $unsignedApk = Join-Path $buildDir 'amap_companion_unsigned.apk'

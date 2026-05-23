@@ -6,6 +6,14 @@
 update_server/public/CHANGELOG.md
 ```
 
+## 2026-05-24 Android 4.3 兼容分支
+
+- `legacy-android-4.3` 分支同步当前 master 功能，并将应用最低系统版本降到 Android 4.3 / API 18。
+- 构建脚本同步改为 `d8 --min-api 18`，本地签名 APK 已确认 `sdkVersion: 18`。
+- 4.3 上不再调用 Android 6.0 才有的悬浮窗授权检查；旧系统会直接按 `SYSTEM_ALERT_WINDOW` 权限启动悬浮窗服务。
+- 更新安装流程保留 master 的 PackageInstaller、InstallerX、系统默认安装器链路；Android 5.0 以下会跳过 PackageInstaller，直接尝试备用安装器，避免 4.3 类加载失败。
+- 移除应用列表/副屏列表排序中 Android 4.3 不具备的 Java 8 标准库排序方法，降低旧系统运行时崩溃风险。
+
 ## 2026-05-23 资源轻量化
 
 - 清理未被当前车道显示逻辑引用的旧版/备用车道图片资源，仅保留实际动态加载的 `lane_pdf_0..48` 和通知图标。

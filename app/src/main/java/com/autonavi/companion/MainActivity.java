@@ -1044,12 +1044,25 @@ public class MainActivity extends Activity {
     }
 
     private void sortAppChoices(ArrayList<AppChoice> choices) {
-        Collections.sort(choices, Comparator
-                .comparing((AppChoice a) -> !a.amapPackage)
-                .thenComparing(a -> !a.mapNamed)
-                .thenComparing(a -> a.system)
-                .thenComparing(a -> a.label.toLowerCase(java.util.Locale.CHINA))
-                .thenComparing(a -> a.packageName));
+        Collections.sort(choices, new Comparator<AppChoice>() {
+            @Override
+            public int compare(AppChoice a, AppChoice b) {
+                int result = compareBoolean(!a.amapPackage, !b.amapPackage);
+                if (result != 0) return result;
+                result = compareBoolean(!a.mapNamed, !b.mapNamed);
+                if (result != 0) return result;
+                result = compareBoolean(a.system, b.system);
+                if (result != 0) return result;
+                result = a.label.toLowerCase(java.util.Locale.CHINA)
+                        .compareTo(b.label.toLowerCase(java.util.Locale.CHINA));
+                if (result != 0) return result;
+                return a.packageName.compareTo(b.packageName);
+            }
+        });
+    }
+
+    private int compareBoolean(boolean a, boolean b) {
+        return a == b ? 0 : (a ? 1 : -1);
     }
 
     private boolean isAmapPackage(String packageName) {
@@ -1061,21 +1074,29 @@ public class MainActivity extends Activity {
     }
 
     private void startOverlayService() {
-        if (!Settings.canDrawOverlays(this)) {
+        if (!canDrawOverlaysCompat()) {
             new AlertDialog.Builder(this)
                     .setTitle("\u60ac\u6d6e\u7a97\u6743\u9650")
                     .setMessage("\u4f34\u4fa3\u670d\u52a1\u9700\u8981\u60ac\u6d6e\u7a97\u6743\u9650\uff0c\u8bf7\u5728\u63a5\u4e0b\u6765\u7684\u754c\u9762\u4e2d\u5141\u8bb8\u201c\u663e\u793a\u5728\u5176\u4ed6\u5e94\u7528\u7684\u4e0a\u5c42\u201d\u3002")
                     .setPositiveButton("\u53bb\u8bbe\u7f6e", (d, w) -> {
-                        try {
-                            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                    Uri.parse("package:" + getPackageName())));
-                        } catch (Throwable ignored) {}
+                        requestOverlayPermission();
                     })
                     .setNegativeButton("\u53d6\u6d88", null)
                     .show();
             return;
         }
         startOverlayService(this);
+    }
+
+    private boolean canDrawOverlaysCompat() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return true;
+        }
+        try {
+            return Settings.canDrawOverlays(this);
+        } catch (Throwable ignored) {
+            return true;
+        }
     }
 
     static void startOverlayService(Context context) {
@@ -1118,6 +1139,8 @@ public class MainActivity extends Activity {
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
             intent.setData(Uri.parse("package:" + getPackageName()));
             startActivity(intent);
+        } else {
+            Toast.makeText(this, "\u5f53\u524d\u7cfb\u7edf\u7248\u672c\u65e0\u9700\u5355\u72ec\u6388\u6743\u60ac\u6d6e\u7a97", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -2127,7 +2150,12 @@ public class MainActivity extends Activity {
             }
             choices.add(new DisplayChoice(display.getDisplayId(), name));
         }
-        Collections.sort(choices, Comparator.comparingInt(choice -> choice.displayId));
+        Collections.sort(choices, new Comparator<DisplayChoice>() {
+            @Override
+            public int compare(DisplayChoice a, DisplayChoice b) {
+                return a.displayId - b.displayId;
+            }
+        });
         return choices;
     }
 
