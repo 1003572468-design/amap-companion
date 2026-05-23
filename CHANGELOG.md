@@ -11,6 +11,7 @@ update_server/public/CHANGELOG.md
 - 清理未被当前车道显示逻辑引用的旧版/备用车道图片资源，仅保留实际动态加载的 `lane_pdf_0..48` 和通知图标。
 - `drawable` 资源从 `224,560B` 降至 `101,973B`，减少约 `54.6%`；整个 `app/src/main/res` 从 `516,103B` 降至 `393,516B`，减少约 `23.8%`。
 - 当前本地签名 APK 体积为 `422,723B`，约 `412.8KB`，应用包更轻量。
+- 更新安装流程新增备用通道：PackageInstaller 被车机拦截后，会继续尝试 InstallerX / InstallerX Revived，再使用带真实 `content://` APK URI 的系统默认安装器，减少小鹏车机 `uri:null` 安装拦截导致的“解析包时出现问题”。
 
 ## 2026-05-22 高德广播自动显示与日志调试优化
 

@@ -38,6 +38,11 @@
         <service
             android:name=".OverlayService"
             android:exported="false" />
+        <provider
+            android:name=".ApkFileProvider"
+            android:authorities="com.autonavi.companion.apkfileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true" />
         <receiver
             android:name=".BootReceiver"
             android:enabled="true"
