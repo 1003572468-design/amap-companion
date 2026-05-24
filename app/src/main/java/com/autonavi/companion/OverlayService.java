@@ -1982,15 +1982,19 @@ public class OverlayService extends Service {
         }
         if (turnText != null) {
             turnText.setText(turnRoadText);
+            turnText.setVisibility(TextUtils.isEmpty(turnRoadText) ? View.GONE : View.VISIBLE);
         }
         if (clusterTurnText != null) {
             clusterTurnText.setText(clusterTurnRoadText);
+            clusterTurnText.setVisibility(TextUtils.isEmpty(clusterTurnRoadText) ? View.GONE : View.VISIBLE);
         }
         if (turnDistanceText != null) {
             turnDistanceText.setText(currentTurnDistance);
+            turnDistanceText.setVisibility(TextUtils.isEmpty(currentTurnDistance) ? View.GONE : View.VISIBLE);
         }
         if (clusterTurnDistanceText != null) {
             clusterTurnDistanceText.setText(currentTurnDistance);
+            clusterTurnDistanceText.setVisibility(TextUtils.isEmpty(currentTurnDistance) ? View.GONE : View.VISIBLE);
         }
         if (turnIconView != null) {
             applyTurnIcon(turnIconView, currentTurnIcon);
