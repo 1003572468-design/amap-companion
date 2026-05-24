@@ -68,6 +68,7 @@ public class OverlayService extends Service {
     private static final long DISPLAY_POLICY_POLL_MS = 1500L;
     private static final long NAVIGATION_ACTIVE_TTL_MS = 12000L;
     private static final long TARGET_BROADCAST_ACTIVE_TTL_MS = 300000L;
+    private static final long PANEL_WIDTH_SHRINK_DELAY_MS = 2500L;
     private static final Pattern CAMERA_LIGHT_PATTERN = Pattern.compile(
             "CameraLightInfo\\{([^}]*)\\}");
 
@@ -164,6 +165,12 @@ public class OverlayService extends Service {
     private int currentLimitSpeed = -1;
     private long alertUpdatedAt;
     private int navigationTurnDir = -1;
+    private Runnable mainPanelWidthUnlock;
+    private Runnable clusterPanelWidthUnlock;
+    private int mainPanelBaseMinWidth = -1;
+    private int clusterPanelBaseMinWidth = -1;
+    private int mainPanelHeldMinWidth;
+    private int clusterPanelHeldMinWidth;
     private int[] lastLaneData;
     private boolean[] lastLaneAdvised;
     private float overlayScale = 2f;
@@ -259,6 +266,12 @@ public class OverlayService extends Service {
         mainHandler.removeCallbacks(alertClear);
         mainHandler.removeCallbacks(trafficLightTicker);
         mainHandler.removeCallbacks(displayPolicyPoll);
+        if (mainPanelWidthUnlock != null) {
+            mainHandler.removeCallbacks(mainPanelWidthUnlock);
+        }
+        if (clusterPanelWidthUnlock != null) {
+            mainHandler.removeCallbacks(clusterPanelWidthUnlock);
+        }
         dismissClusterMirror();
         try {
             unregisterReceiver(receiver);
@@ -1255,6 +1268,7 @@ public class OverlayService extends Service {
         clusterWindowManager = null;
         clusterParams = null;
         clusterPanel = null;
+        resetClusterPanelWidthStabilizer();
         clusterModeRow = null;
         clusterModeText = null;
         clusterTitleText = null;
@@ -1548,10 +1562,111 @@ public class OverlayService extends Service {
     private void refreshPanelVisibility() {
         if (panel != null) {
             panel.setVisibility(hasVisibleChildren(panel) ? View.VISIBLE : View.GONE);
+            schedulePanelWidthStabilizer(panel, false);
         }
         if (clusterPanel != null) {
             clusterPanel.setVisibility(hasVisibleChildren(clusterPanel) ? View.VISIBLE : View.GONE);
+            schedulePanelWidthStabilizer(clusterPanel, true);
         }
+    }
+
+    private void schedulePanelWidthStabilizer(LinearLayout target, boolean cluster) {
+        if (target == null) {
+            return;
+        }
+        target.post(() -> stabilizePanelWidth(target, cluster));
+    }
+
+    private void stabilizePanelWidth(LinearLayout target, boolean cluster) {
+        if (target == null) {
+            return;
+        }
+        int baseMin = cluster ? clusterPanelBaseMinWidth : mainPanelBaseMinWidth;
+        if (baseMin < 0) {
+            baseMin = Math.max(0, target.getMinimumWidth());
+            if (cluster) {
+                clusterPanelBaseMinWidth = baseMin;
+            } else {
+                mainPanelBaseMinWidth = baseMin;
+            }
+        }
+
+        int width = target.getWidth();
+        if (width <= 0) {
+            int wSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+            int hSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+            target.measure(wSpec, hSpec);
+            width = target.getMeasuredWidth();
+        }
+
+        int held = cluster ? clusterPanelHeldMinWidth : mainPanelHeldMinWidth;
+        int nextMin = Math.max(baseMin, Math.max(held, width));
+        boolean expanded = nextMin > held;
+        if (cluster) {
+            clusterPanelHeldMinWidth = nextMin;
+        } else {
+            mainPanelHeldMinWidth = nextMin;
+        }
+        if (target.getMinimumWidth() != nextMin) {
+            target.setMinimumWidth(nextMin);
+            target.requestLayout();
+        }
+
+        Runnable oldUnlock = cluster ? clusterPanelWidthUnlock : mainPanelWidthUnlock;
+        if (!expanded && oldUnlock != null) {
+            return;
+        }
+        if (oldUnlock != null) {
+            mainHandler.removeCallbacks(oldUnlock);
+        }
+        Runnable unlock = () -> unlockPanelWidth(target, cluster);
+        if (cluster) {
+            clusterPanelWidthUnlock = unlock;
+        } else {
+            mainPanelWidthUnlock = unlock;
+        }
+        mainHandler.postDelayed(unlock, PANEL_WIDTH_SHRINK_DELAY_MS);
+    }
+
+    private void unlockPanelWidth(LinearLayout target, boolean cluster) {
+        if (target == null || target != (cluster ? clusterPanel : panel)) {
+            return;
+        }
+        int baseMin = Math.max(0, cluster ? clusterPanelBaseMinWidth : mainPanelBaseMinWidth);
+        if (cluster) {
+            clusterPanelHeldMinWidth = 0;
+            clusterPanelWidthUnlock = null;
+        } else {
+            mainPanelHeldMinWidth = 0;
+            mainPanelWidthUnlock = null;
+        }
+        if (target.getMinimumWidth() != baseMin) {
+            target.setMinimumWidth(baseMin);
+            target.requestLayout();
+        }
+        if (cluster) {
+            updateClusterPosition();
+        } else {
+            updateOverlayPosition();
+        }
+    }
+
+    private void resetMainPanelWidthStabilizer() {
+        if (mainPanelWidthUnlock != null) {
+            mainHandler.removeCallbacks(mainPanelWidthUnlock);
+            mainPanelWidthUnlock = null;
+        }
+        mainPanelBaseMinWidth = -1;
+        mainPanelHeldMinWidth = 0;
+    }
+
+    private void resetClusterPanelWidthStabilizer() {
+        if (clusterPanelWidthUnlock != null) {
+            mainHandler.removeCallbacks(clusterPanelWidthUnlock);
+            clusterPanelWidthUnlock = null;
+        }
+        clusterPanelBaseMinWidth = -1;
+        clusterPanelHeldMinWidth = 0;
     }
 
     private boolean hasVisibleChildren(LinearLayout layout) {
@@ -1609,6 +1724,7 @@ public class OverlayService extends Service {
             }
         }
         panel = null;
+        resetMainPanelWidthStabilizer();
         modeRow = null;
         modeText = null;
         titleText = null;
