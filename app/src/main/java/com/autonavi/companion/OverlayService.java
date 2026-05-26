@@ -2293,7 +2293,7 @@ public class OverlayService extends Service {
         FrameLayout speedBox = new FrameLayout(context);
         speedBox.setTag("speed_box");
         ImageView speedIcon = new ImageView(context);
-        speedIcon.setImageResource(R.drawable.edog_limit_speed);
+        speedIcon.setImageResource(R.drawable.widget_drawable_auto_ic_edog_limit_speed_loading);
         speedIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
         speedBox.addView(speedIcon, new FrameLayout.LayoutParams(iconSize, iconSize));
         TextView speedText = new TextView(context);
@@ -2313,7 +2313,7 @@ public class OverlayService extends Service {
         cameraBox.setGravity(Gravity.CENTER_VERTICAL);
         cameraBox.setVisibility(View.GONE);
         ImageView cameraIcon = new ImageView(context);
-        cameraIcon.setImageResource(R.drawable.edog_camera);
+        cameraIcon.setImageResource(R.drawable.widget_drawable_auto_ic_edog_camera_loading);
         cameraIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
         cameraBox.addView(cameraIcon, new LinearLayout.LayoutParams(iconSize, iconSize));
         TextView cameraText = new TextView(context);
@@ -2331,7 +2331,7 @@ public class OverlayService extends Service {
         lightBox.setGravity(Gravity.CENTER_VERTICAL);
         lightBox.setVisibility(View.GONE);
         ImageView lightIcon = new ImageView(context);
-        lightIcon.setImageResource(R.drawable.edog_traffic_light);
+        lightIcon.setImageResource(R.drawable.widget_drawable_auto_ic_edog_traffic_loading);
         lightIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
         lightBox.addView(lightIcon, new LinearLayout.LayoutParams(iconSize, iconSize));
         TextView lightCount = new TextView(context);
@@ -3746,6 +3746,7 @@ public class OverlayService extends Service {
 
         int cameraIndex = intValue(extras, "CAMERA_INDEX", 0);
         int cameraDist = intValue(extras, "CAMERA_DIST", -1);
+        int cameraType = intValue(extras, "CAMERA_TYPE", -1);
         int cameraSpeed = intValue(extras, "CAMERA_SPEED", -1);
         int limitedSpeed = intValue(extras, "LIMITED_SPEED", -1);
         int displaySpeed = limitedSpeed > 0 ? limitedSpeed : cameraSpeed;
@@ -3754,7 +3755,7 @@ public class OverlayService extends Service {
         }
 
         if (cameraIndex != -1 && cameraDist >= 0) {
-            StringBuilder camera = new StringBuilder(cameraTypeName(intValue(extras, "CAMERA_TYPE", -1)));
+            StringBuilder camera = new StringBuilder(cameraTypeName(cameraType));
             camera.append(' ').append(formatDistance(cameraDist));
             parts.add(camera.toString());
         }
@@ -3790,8 +3791,8 @@ public class OverlayService extends Service {
         if (clusterAlertText != null) {
             clusterAlertText.setText(alertText.getText());
         }
-        populateEdogAlertRow(alertRow, displaySpeed, cameraIndex, cameraDist, lightNum);
-        populateEdogAlertRow(clusterAlertRow, displaySpeed, cameraIndex, cameraDist, lightNum);
+        populateEdogAlertRow(alertRow, displaySpeed, cameraIndex, cameraDist, cameraType, lightNum);
+        populateEdogAlertRow(clusterAlertRow, displaySpeed, cameraIndex, cameraDist, cameraType, lightNum);
         refreshAlertCard();
         alertUpdatedAt = System.currentTimeMillis();
         mainHandler.removeCallbacks(alertClear);
@@ -3819,7 +3820,8 @@ public class OverlayService extends Service {
         mainHandler.removeCallbacks(alertClear);
     }
 
-    private void populateEdogAlertRow(LinearLayout row, int speed, int cameraIndex, int cameraDist, int lightNum) {
+    private void populateEdogAlertRow(LinearLayout row, int speed, int cameraIndex,
+                                      int cameraDist, int cameraType, int lightNum) {
         if (row == null) {
             return;
         }
@@ -3844,6 +3846,9 @@ public class OverlayService extends Service {
             if (hasCamera) {
                 cameraBox.setVisibility(View.VISIBLE);
                 LinearLayout box = (LinearLayout) cameraBox;
+                if (box.getChildCount() > 0 && box.getChildAt(0) instanceof ImageView) {
+                    ((ImageView) box.getChildAt(0)).setImageResource(edogIconResource(cameraType));
+                }
                 if (box.getChildCount() > 1 && box.getChildAt(1) instanceof TextView) {
                     ((TextView) box.getChildAt(1)).setText(formatDistance(cameraDist));
                 }
@@ -4394,8 +4399,105 @@ public class OverlayService extends Service {
                 return "\u8fdd\u7ae0";
             case 4:
                 return "\u516c\u4ea4\u9053";
+            case 5:
+                return "\u5e94\u6025\u8f66\u9053";
+            case 6:
+                return "\u975e\u673a\u52a8\u8f66\u9053";
+            case 11:
+                return "ETC\u6d4b\u901f";
+            case 12:
+                return "\u538b\u7ebf";
+            case 13:
+                return "\u4eba\u884c\u9053";
+            case 14:
+                return "\u76d1\u63a7";
+            case 15:
+                return "\u95ef\u7ea2\u706f";
+            case 16:
+                return "\u516c\u4ea4\u9053";
+            case 17:
+                return "\u5e94\u6025\u8f66\u9053";
+            case 18:
+                return "\u5b89\u5168\u5e26";
+            case 19:
+                return "\u624b\u673a";
+            case 20:
+                return "\u975e\u673a\u52a8\u8f66\u9053";
+            case 21:
+                return "\u8fdd\u505c";
+            case 22:
+                return "\u706f\u5149";
+            case 23:
+                return "\u76d1\u63a7";
+            case 24:
+                return "\u9e23\u7b1b";
+            case 25:
+                return "\u9006\u884c";
+            case 26:
+                return "\u94c1\u8def";
+            case 27:
+                return "\u4e0d\u6309\u5bfc\u5411\u8f66\u9053";
+            case 28:
+                return "\u8f66\u8ddd";
+            case 29:
+                return "HOV";
+            case 30:
+                return "\u8fdd\u7ae0\u6293\u62cd";
             default:
                 return "\u7535\u5b50\u773c";
+        }
+    }
+
+    private int edogIconResource(int type) {
+        switch (type) {
+            case 0:
+                return R.drawable.widget_drawable_auto_ic_edog_limit_speed_loading;
+            case 2:
+            case 15:
+                return R.drawable.widget_drawable_auto_ic_edog_traffic_loading;
+            case 4:
+            case 16:
+                return R.drawable.widget_drawable_auto_ic_edog_bus_loading;
+            case 5:
+            case 17:
+                return R.drawable.widget_drawable_auto_ic_edog_emergency_line_loading;
+            case 6:
+            case 20:
+                return R.drawable.widget_drawable_auto_ic_edog_bicycle_lane_loading;
+            case 11:
+                return R.drawable.widget_drawable_auto_ic_edog_speed_etc_loading;
+            case 12:
+                return R.drawable.widget_drawable_auto_ic_edog_line_loading;
+            case 13:
+                return R.drawable.widget_drawable_auto_ic_edog_sidewalk_loading;
+            case 18:
+                return R.drawable.widget_drawable_auto_ic_edog_seatbelt_loading;
+            case 19:
+                return R.drawable.widget_drawable_auto_ic_edog_phone_loading;
+            case 21:
+                return R.drawable.widget_drawable_auto_ic_edog_parking_loading;
+            case 22:
+                return R.drawable.widget_drawable_auto_ic_edog_lamp;
+            case 24:
+                return R.drawable.widget_drawable_auto_ic_edog_speaker_loading;
+            case 25:
+                return R.drawable.widget_drawable_auto_ic_edog_reverse;
+            case 26:
+                return R.drawable.widget_drawable_auto_ic_edog_railway;
+            case 27:
+                return R.drawable.widget_drawable_auto_ic_edog_tail;
+            case 28:
+                return R.drawable.widget_drawable_auto_ic_edog_space;
+            case 29:
+                return R.drawable.widget_drawable_auto_ic_edog_hov;
+            case 30:
+                return R.drawable.widget_drawable_auto_ic_edog_recycle;
+            case 1:
+            case 3:
+            case 14:
+            case 23:
+            default:
+                return R.drawable.widget_drawable_auto_ic_edog_camera_loading;
         }
     }
 
