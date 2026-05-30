@@ -148,7 +148,7 @@ function runSync(reason = "timer") {
 const server = http.createServer((req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
-    if (url.pathname === "/" || url.pathname === "/health") {
+    if (url.pathname === "/health") {
       sendJson(res, 200, {
         ok: true,
         service: "amap-companion-update-server",
@@ -157,6 +157,10 @@ const server = http.createServer((req, res) => {
         syncing,
         lastSync,
       });
+      return;
+    }
+    if (url.pathname === "/") {
+      sendFile(res, path.join(publicDir, "index.html"), "text/html; charset=utf-8");
       return;
     }
     if (url.pathname === "/sync") {
@@ -178,6 +182,29 @@ const server = http.createServer((req, res) => {
     }
     if (url.pathname === "/CHANGELOG.md") {
       sendFile(res, resolveChangelogPath(), "text/markdown; charset=utf-8");
+      return;
+    }
+    // serve static files from public directory
+    const safePath = path.normalize(url.pathname).replace(/^(\.\.[/\\])+/, "");
+    const staticFile = path.join(publicDir, safePath);
+    if (staticFile.startsWith(publicDir) && fs.existsSync(staticFile) && fs.statSync(staticFile).isFile()) {
+      const ext = path.extname(staticFile).toLowerCase();
+      const types = {
+        ".html": "text/html; charset=utf-8",
+        ".css": "text/css; charset=utf-8",
+        ".js": "application/javascript; charset=utf-8",
+        ".json": "application/json; charset=utf-8",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".svg": "image/svg+xml",
+        ".ico": "image/x-icon",
+        ".woff2": "font/woff2",
+        ".woff": "font/woff",
+        ".ttf": "font/ttf",
+      };
+      sendFile(res, staticFile, types[ext] || "application/octet-stream");
       return;
     }
     sendText(res, 404, "not found");

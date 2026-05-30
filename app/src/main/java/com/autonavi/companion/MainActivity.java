@@ -107,6 +107,7 @@ public class MainActivity extends Activity {
     static final String DEFAULT_UPDATE_CHANNEL = UPDATE_CHANNEL_SERVER;
     static final String SERVER_UPDATE_URL = "https://amap-companion.zuoqirun.top/update.json";
     static final String GITHUB_UPDATE_URL = "https://amap-companion.zuoqirun.top/update-github.json";
+    static final String HOMEPAGE_URL = "https://amap-companion.zuoqirun.top";
     static final String REPOSITORY_URL = "https://github.com/zuo-qirun/amap-companion";
     static final String LICENSE_URL = "https://github.com/zuo-qirun/amap-companion/blob/master/LICENSE";
     static final String CUSTOM_MAP_SKILL_URL = "https://github.com/zuo-qirun/amap-cruise-wrapper-skill";
@@ -118,6 +119,8 @@ public class MainActivity extends Activity {
     static final String TEXT_MODE_AUTO = "auto";
     static final String OVERLAY_UI_OLD = "old";
     static final String OVERLAY_UI_NEW = "new";
+    static final String OVERLAY_UI_DYNAMIC_ISLAND = "dynamic_island";
+    static final String OVERLAY_UI_DYNAMIC_ISLAND_COMPACT = "dynamic_island_compact";
     static final int MIN_BACKGROUND_OPACITY_PERCENT = 0;
     static final int MAX_BACKGROUND_OPACITY_PERCENT = 90;
     static final int DEFAULT_BACKGROUND_OPACITY_PERCENT = 90;
@@ -315,6 +318,16 @@ public class MainActivity extends Activity {
         title.setTextColor(0xFF111827);
         section.addView(title, new LinearLayout.LayoutParams(-1, -2));
 
+        TextView homepage = new TextView(this);
+        homepage.setText("\u5b98\u7f51\n" + HOMEPAGE_URL);
+        homepage.setTextSize(13f);
+        homepage.setTextColor(0xFF334155);
+        homepage.setLineSpacing(dp(2), 1.0f);
+        homepage.setTextIsSelectable(true);
+        LinearLayout.LayoutParams homepageLp = new LinearLayout.LayoutParams(-1, -2);
+        homepageLp.setMargins(0, dp(8), 0, 0);
+        section.addView(homepage, homepageLp);
+
         TextView repo = new TextView(this);
         repo.setText("\u5f00\u6e90\u5730\u5740\n" + REPOSITORY_URL);
         repo.setTextSize(13f);
@@ -346,12 +359,13 @@ public class MainActivity extends Activity {
 
         if (isWideLayout()) {
             addButtonPair(section,
-                    button("\u6253\u5f00\u5f00\u6e90\u4ed3\u5e93", v -> openUrl(REPOSITORY_URL), 0xFF1D4ED8),
-                    button("\u67e5\u770b\u8bb8\u53ef\u8bc1", v -> openUrl(LICENSE_URL), 0xFF475569));
+                    button("\u8bbf\u95ee\u5b98\u7f51", v -> openUrl(HOMEPAGE_URL), 0xFF2563EB),
+                    button("\u6253\u5f00\u5f00\u6e90\u4ed3\u5e93", v -> openUrl(REPOSITORY_URL), 0xFF1D4ED8));
             addButtonPair(section,
                     button("\u5b9a\u5236\u5730\u56fe Skill", v -> chooseDownloadSource("\u5b9a\u5236\u5730\u56fe Skill", CUSTOM_MAP_SKILL_URL, CUSTOM_MAP_SKILL_MIRROR_URL), 0xFF0F766E),
                     button("\u4e0b\u8f7d\u5df2\u6539\u9ad8\u5fb7", v -> chooseDownloadSource("\u4e0b\u8f7d\u5df2\u6539\u9ad8\u5fb7", CUSTOM_MAP_APK_URL, CUSTOM_MAP_APK_MIRROR_URL), 0xFFB45309));
         } else {
+            section.addView(button("\u8bbf\u95ee\u5b98\u7f51", v -> openUrl(HOMEPAGE_URL), 0xFF2563EB));
             section.addView(button("\u6253\u5f00\u5f00\u6e90\u4ed3\u5e93", v -> openUrl(REPOSITORY_URL), 0xFF1D4ED8));
             section.addView(button("\u67e5\u770b\u8bb8\u53ef\u8bc1", v -> openUrl(LICENSE_URL), 0xFF475569));
             section.addView(button("\u5b9a\u5236\u5730\u56fe Skill", v -> chooseDownloadSource("\u5b9a\u5236\u5730\u56fe Skill", CUSTOM_MAP_SKILL_URL, CUSTOM_MAP_SKILL_MIRROR_URL), 0xFF0F766E));
@@ -597,7 +611,7 @@ public class MainActivity extends Activity {
         box.addView(title, new LinearLayout.LayoutParams(-1, -2));
 
         TextView hint = new TextView(this);
-        hint.setText("这些选项只控制本程序窗口，不会主动唤醒或启动目标高德应用。高德广播自动显示会在后台持续监听广播；高德前台隐藏才需要“使用情况访问权限”。");
+        hint.setText("这些选项只控制本程序窗口，不会主动唤醒或启动目标高德应用。开机或亮屏自动启动服务开启后，系统重启、应用更新或车机亮屏时会自动启动伴侣服务，相当于打开软件后点击“启动伴侣服务”。高德广播自动显示会在后台持续监听广播。");
         hint.setTextSize(12f);
         hint.setTextColor(0xFF64748B);
         LinearLayout.LayoutParams hintLp = new LinearLayout.LayoutParams(-1, -2);
@@ -612,7 +626,7 @@ public class MainActivity extends Activity {
 
         if (isWideLayout()) {
             addTogglePair(grid,
-                    behaviorToggle("开机自动启动", KEY_AUTO_START_ENABLED),
+                    behaviorToggle("开机或亮屏自动启动服务", KEY_AUTO_START_ENABLED),
                     behaviorToggle("进入软件后自动启动服务", KEY_START_SERVICE_ON_APP_OPEN));
             addTogglePair(grid,
                     behaviorToggle("高德广播自动显示悬浮窗", KEY_SHOW_MAIN_WHEN_TARGET_FOREGROUND),
@@ -624,7 +638,7 @@ public class MainActivity extends Activity {
                     behaviorToggle("导航/巡航退出隐藏仪表", KEY_HIDE_CLUSTER_WHEN_INACTIVE),
                     null);
         } else {
-            grid.addView(behaviorToggle("开机自动启动", KEY_AUTO_START_ENABLED));
+            grid.addView(behaviorToggle("开机或亮屏自动启动服务", KEY_AUTO_START_ENABLED));
             grid.addView(behaviorToggle("进入软件后自动启动服务", KEY_START_SERVICE_ON_APP_OPEN));
             grid.addView(behaviorToggle("高德广播自动显示悬浮窗", KEY_SHOW_MAIN_WHEN_TARGET_FOREGROUND));
             grid.addView(behaviorToggle("高德前台隐藏中控悬浮窗", KEY_HIDE_MAIN_WHEN_TARGET_FOREGROUND));
@@ -1986,21 +2000,37 @@ public class MainActivity extends Activity {
     }
 
     private String overlayUiStyleButtonText() {
-        return isNewOverlayUiEnabled(this)
-                ? "\u60ac\u6d6e\u7a97\u6837\u5f0f\uff1a\u65b0 UI\uff08\u6d4b\u8bd5\u4e2d\uff09"
-                : "\u60ac\u6d6e\u7a97\u6837\u5f0f\uff1a\u65e7 UI";
+        String style = getOverlayUiStyle(this);
+        if (OVERLAY_UI_DYNAMIC_ISLAND_COMPACT.equals(style)) {
+            return "\u60ac\u6d6e\u7a97\u6837\u5f0f\uff1a\u7075\u52a8\u5c9b\uff08\u7d27\u51d1\uff09";
+        }
+        if (OVERLAY_UI_DYNAMIC_ISLAND.equals(style)) {
+            return "\u60ac\u6d6e\u7a97\u6837\u5f0f\uff1a\u7075\u52a8\u5c9b\uff08\u6d4b\u8bd5\uff09";
+        }
+        if (OVERLAY_UI_NEW.equals(style)) {
+            return "\u60ac\u6d6e\u7a97\u6837\u5f0f\uff1a\u65b0 UI\uff08\u6d4b\u8bd5\u4e2d\uff09";
+        }
+        return "\u60ac\u6d6e\u7a97\u6837\u5f0f\uff1a\u65e7 UI";
     }
 
     private void chooseOverlayUiStyle() {
         String[] labels = {
                 "\u65e7 UI\uff08\u9ed8\u8ba4\uff09",
+                "\u7075\u52a8\u5c9b\uff08\u7d27\u51d1\uff09",
+                "\u7075\u52a8\u5c9b\uff08\u6d4b\u8bd5\uff09",
                 "\u65b0 UI\uff08\u5361\u7247\u6837\u5f0f\uff0c\u6d4b\u8bd5\u4e2d\uff09"
         };
-        int checked = isNewOverlayUiEnabled(this) ? 1 : 0;
+        String currentStyle = getOverlayUiStyle(this);
+        int checked = OVERLAY_UI_DYNAMIC_ISLAND.equals(currentStyle) ? 2
+                : OVERLAY_UI_DYNAMIC_ISLAND_COMPACT.equals(currentStyle) ? 1
+                : OVERLAY_UI_NEW.equals(currentStyle) ? 3 : 0;
         new AlertDialog.Builder(this)
                 .setTitle("\u9009\u62e9\u60ac\u6d6e\u7a97\u6837\u5f0f")
                 .setSingleChoiceItems(labels, checked, (dialog, which) -> {
-                    saveOverlayUiStyle(which == 1 ? OVERLAY_UI_NEW : OVERLAY_UI_OLD);
+                    String style = which == 1 ? OVERLAY_UI_DYNAMIC_ISLAND_COMPACT
+                            : which == 2 ? OVERLAY_UI_DYNAMIC_ISLAND
+                            : which == 3 ? OVERLAY_UI_NEW : OVERLAY_UI_OLD;
+                    saveOverlayUiStyle(style);
                     applyOverlayPreviewStyle();
                     notifyOverlayStyleChanged();
                     dialog.dismiss();
@@ -2037,7 +2067,10 @@ public class MainActivity extends Activity {
     private void saveOverlayUiStyle(String style) {
         getSharedPreferences(PREFS, MODE_PRIVATE)
                 .edit()
-                .putString(KEY_OVERLAY_UI_STYLE, OVERLAY_UI_NEW.equals(style) ? OVERLAY_UI_NEW : OVERLAY_UI_OLD)
+                .putString(KEY_OVERLAY_UI_STYLE,
+                        OVERLAY_UI_DYNAMIC_ISLAND_COMPACT.equals(style) ? OVERLAY_UI_DYNAMIC_ISLAND_COMPACT
+                                : OVERLAY_UI_DYNAMIC_ISLAND.equals(style) ? OVERLAY_UI_DYNAMIC_ISLAND
+                                : OVERLAY_UI_NEW.equals(style) ? OVERLAY_UI_NEW : OVERLAY_UI_OLD)
                 .apply();
     }
 
@@ -2143,6 +2176,7 @@ public class MainActivity extends Activity {
     private void stopServiceIfNoVisuals() {
         if (!isMainOverlayEnabled(this)
                 && !isClusterMirrorEnabled(this)
+                && !isAutoStartEnabled(this)
                 && !isShowMainWhenTargetForegroundEnabled(this)) {
             stopService(new Intent(this, OverlayService.class));
         }
@@ -2361,7 +2395,17 @@ public class MainActivity extends Activity {
     }
 
     static boolean isNewOverlayUiEnabled(android.content.Context context) {
-        return OVERLAY_UI_NEW.equals(getOverlayUiStyle(context));
+        String style = getOverlayUiStyle(context);
+        return OVERLAY_UI_NEW.equals(style) || OVERLAY_UI_DYNAMIC_ISLAND.equals(style)
+                || OVERLAY_UI_DYNAMIC_ISLAND_COMPACT.equals(style);
+    }
+
+    static boolean isDynamicIslandUiEnabled(android.content.Context context) {
+        return OVERLAY_UI_DYNAMIC_ISLAND.equals(getOverlayUiStyle(context));
+    }
+
+    static boolean isDynamicIslandCompactUiEnabled(android.content.Context context) {
+        return OVERLAY_UI_DYNAMIC_ISLAND_COMPACT.equals(getOverlayUiStyle(context));
     }
 
     static boolean usesDarkTextPalette(android.content.Context context) {
@@ -2388,7 +2432,16 @@ public class MainActivity extends Activity {
     static String getOverlayUiStyle(android.content.Context context) {
         String style = context.getSharedPreferences(PREFS, MODE_PRIVATE)
                 .getString(KEY_OVERLAY_UI_STYLE, OVERLAY_UI_OLD);
-        return OVERLAY_UI_NEW.equals(style) ? OVERLAY_UI_NEW : OVERLAY_UI_OLD;
+        if (OVERLAY_UI_DYNAMIC_ISLAND_COMPACT.equals(style)) {
+            return OVERLAY_UI_DYNAMIC_ISLAND_COMPACT;
+        }
+        if (OVERLAY_UI_DYNAMIC_ISLAND.equals(style)) {
+            return OVERLAY_UI_DYNAMIC_ISLAND;
+        }
+        if (OVERLAY_UI_NEW.equals(style)) {
+            return OVERLAY_UI_NEW;
+        }
+        return OVERLAY_UI_OLD;
     }
 
     static boolean isOverlayContentEnabled(android.content.Context context, String key) {

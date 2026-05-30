@@ -17,6 +17,7 @@ const apkDir = path.join(publicDir, "apk");
 const apkDest = path.join(apkDir, "amap_companion_signed.apk");
 const manifestOut = path.join(publicDir, "update.json");
 const changelogOut = path.join(publicDir, "CHANGELOG.md");
+const changelogFullOut = path.join(publicDir, "CHANGELOG_FULL.md");
 const stateDir = path.join(__dirname, "state");
 const statePath = path.join(stateDir, "release-state.json");
 const forceSync = process.env.FORCE_SYNC === "1" || process.env.FORCE_BUILD === "1" || process.argv.includes("--force");
@@ -200,6 +201,15 @@ async function main() {
     await downloadAsset(changelogAsset, changelogOut);
   } else if (fs.existsSync(changelogOut)) {
     fs.unlinkSync(changelogOut);
+  }
+  // fetch full CHANGELOG.md from repo for website (contains all versions)
+  const repoChangelogUrl = `https://raw.githubusercontent.com/${githubRepo}/master/CHANGELOG.md`;
+  try {
+    log(`fetch full changelog from repo`);
+    const changelogBuffer = await requestBuffer(repoChangelogUrl);
+    fs.writeFileSync(changelogFullOut, changelogBuffer);
+  } catch (err) {
+    log(`repo changelog fetch failed: ${err.message}`);
   }
   writeUpdateFiles(release, releaseManifest, apkAsset, changelogAsset);
   writeState({

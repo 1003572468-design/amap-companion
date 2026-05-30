@@ -14,13 +14,18 @@ public class BootReceiver extends BroadcastReceiver {
             return;
         }
         String action = intent == null ? "" : intent.getAction();
-        if (Intent.ACTION_BOOT_COMPLETED.equals(action)) {
-            if (!MainActivity.isAutoStartEnabled(context)
-                    && !MainActivity.isShowMainWhenTargetForegroundEnabled(context)) {
-                return;
-            }
-            Log.d(TAG, "auto start overlay service after " + action);
-            MainActivity.startOverlayService(context);
+        boolean isAutoStartEvent = Intent.ACTION_BOOT_COMPLETED.equals(action)
+                || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)
+                || Intent.ACTION_SCREEN_ON.equals(action)
+                || Intent.ACTION_USER_PRESENT.equals(action);
+        if (!isAutoStartEvent) {
+            return;
         }
+        if (!MainActivity.isAutoStartEnabled(context)) {
+            Log.d(TAG, "skip auto starting overlay service after " + action);
+            return;
+        }
+        Log.d(TAG, "auto start overlay service after " + action);
+        MainActivity.startOverlayService(context);
     }
 }
