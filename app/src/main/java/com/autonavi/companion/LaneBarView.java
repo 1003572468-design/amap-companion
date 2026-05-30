@@ -7,6 +7,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.DashPathEffect;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.view.View;
 
@@ -25,14 +26,23 @@ public class LaneBarView extends View {
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
+    private final Rect srcRect = new Rect();
     private final Path path = new Path();
     private final Map<String, Bitmap> iconCache = new HashMap<>();
+    private final Map<String, Rect> iconBoundsCache = new HashMap<>();
+    private final Rect commonLaneSourceBounds = new Rect();
     private int[] lanes = new int[]{15, 15, 15, 15};
     private boolean[] recommend = new boolean[]{true, true, true, true};
     private boolean cruiseLaneStyle = true;
     private float iconScaleMultiplier = 1f;
     private float frameScaleMultiplier = 1f;
     private boolean compactSpacing;
+    private boolean showBackground = true;
+    private boolean showDividers = true;
+    private int customLaneSpacingDp = -1;
+    private int customHeightDp = -1;
+    private boolean hasCommonLaneSourceBounds;
+    private boolean useCommonBitmapCrop;
 
     public LaneBarView(Context context) {
         super(context);
@@ -83,6 +93,8 @@ public class LaneBarView extends View {
             recommend = new boolean[count];
             Arrays.fill(recommend, true);
         }
+        iconBoundsCache.clear();
+        updateCommonLaneSourceBounds();
         setVisibility(VISIBLE);
         requestLayout();
         invalidate();
@@ -101,6 +113,37 @@ public class LaneBarView extends View {
 
     public void setCompactSpacing(boolean compact) {
         compactSpacing = compact;
+        iconBoundsCache.clear();
+        updateCommonLaneSourceBounds();
+        requestLayout();
+        invalidate();
+    }
+
+    public void setUseCommonBitmapCrop(boolean use) {
+        useCommonBitmapCrop = use;
+        iconBoundsCache.clear();
+        updateCommonLaneSourceBounds();
+        invalidate();
+    }
+
+    public void setShowBackground(boolean show) {
+        showBackground = show;
+        invalidate();
+    }
+
+    public void setShowDividers(boolean show) {
+        showDividers = show;
+        invalidate();
+    }
+
+    public void setLaneSpacingDp(int dp) {
+        customLaneSpacingDp = dp;
+        requestLayout();
+        invalidate();
+    }
+
+    public void setCustomHeightDp(int dp) {
+        customHeightDp = dp;
         requestLayout();
         invalidate();
     }
@@ -116,8 +159,17 @@ public class LaneBarView extends View {
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int count = Math.max(3, lanes == null ? 4 : lanes.length);
-        int width = dp(compactSpacing ? 40 : 48) * count + dp(compactSpacing ? 8 : 12);
-        int height = dp(compactSpacing ? 50 : 58);
+        int width;
+        int height;
+        if (useCommonBitmapCrop && customLaneSpacingDp >= 0) {
+            int cellWidth = dp(27);
+            int padding = dp(customLaneSpacingDp);
+            width = cellWidth * count + padding;
+            height = dp(customHeightDp >= 0 ? customHeightDp : (compactSpacing ? 50 : 58));
+        } else {
+            width = dp(compactSpacing ? 40 : 48) * count + dp(compactSpacing ? 8 : 12);
+            height = dp(compactSpacing ? 50 : 58);
+        }
         setMeasuredDimension(resolveSize(width, widthMeasureSpec), resolveSize(height, heightMeasureSpec));
     }
 
@@ -128,30 +180,70 @@ public class LaneBarView extends View {
             return;
         }
 
-        rect.set(0, 0, getWidth(), getHeight());
-        paint.setStyle(Paint.Style.FILL);
-        paint.setColor(0xFF2878F0);
-        canvas.drawRoundRect(rect, dp(12), dp(12), paint);
+        if (!useCommonBitmapCrop) {
+            rect.set(0, 0, getWidth(), getHeight());
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(0xFF2878F0);
+            canvas.drawRoundRect(rect, dp(12), dp(12), paint);
+
+            int count = lanes.length;
+            float cell = getWidth() / (float) count;
+            for (int i = 0; i < count; i++) {
+                if (i > 0) {
+                    paint.setColor(0x32FFFFFF);
+                    paint.setStrokeWidth(dp(1));
+                    float x = i * cell;
+                    canvas.drawLine(x, dp(compactSpacing ? 6 : 8), x,
+                            getHeight() - dp(compactSpacing ? 6 : 8), paint);
+                }
+                boolean laneRecommended = recommend == null || i >= recommend.length || recommend[i];
+                LaneIcon icon = iconForLane(lanes[i]);
+                if (laneRecommended && icon.hasEnabled()) {
+                    paint.setStyle(Paint.Style.FILL);
+                    paint.setColor(0x22FFFFFF);
+                    rect.set(cell * i + dp(compactSpacing ? 2 : 4), dp(compactSpacing ? 4 : 5),
+                            cell * (i + 1) - dp(compactSpacing ? 2 : 4),
+                            getHeight() - dp(compactSpacing ? 4 : 5));
+                    canvas.drawRoundRect(rect, dp(9), dp(9), paint);
+                }
+                drawLaneIcon(canvas, lanes[i], icon, cell * i, cell, laneRecommended);
+            }
+            return;
+        }
+
+        if (showBackground) {
+            rect.set(0, 0, getWidth(), getHeight());
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(0xFF2878F0);
+            canvas.drawRoundRect(rect, dp(12), dp(12), paint);
+        }
 
         int count = lanes.length;
-        float cell = getWidth() / (float) count;
+        int visualCount = Math.max(3, count);
+        float cell = getWidth() / (float) visualCount;
+        float start = (visualCount - count) * cell / 2f;
+        float dividerTop = showBackground ? dp(compactSpacing ? 6 : 8) : dp(2);
+        float dividerBottom = getHeight() - (showBackground ? dp(compactSpacing ? 6 : 8) : dp(2));
         for (int i = 0; i < count; i++) {
-            if (i > 0) {
+            if (i > 0 && showDividers) {
                 paint.setColor(0x32FFFFFF);
                 paint.setStrokeWidth(dp(1));
-                float x = i * cell;
-                canvas.drawLine(x, dp(compactSpacing ? 6 : 8), x, getHeight() - dp(compactSpacing ? 6 : 8), paint);
+                float x = start + i * cell;
+                canvas.drawLine(x, dividerTop, x, dividerBottom, paint);
             }
             boolean laneRecommended = recommend == null || i >= recommend.length || recommend[i];
             LaneIcon icon = iconForLane(lanes[i]);
-            if (laneRecommended && icon.hasEnabled()) {
+            if (showBackground && laneRecommended && icon.hasEnabled()) {
                 paint.setStyle(Paint.Style.FILL);
                 paint.setColor(0x22FFFFFF);
-                rect.set(cell * i + dp(compactSpacing ? 2 : 4), dp(compactSpacing ? 4 : 5),
-                        cell * (i + 1) - dp(compactSpacing ? 2 : 4), getHeight() - dp(compactSpacing ? 4 : 5));
+                float left = start + cell * i;
+                rect.set(left + dp(compactSpacing ? 2 : 4), dp(compactSpacing ? 4 : 5),
+                        left + cell - dp(compactSpacing ? 2 : 4), getHeight() - dp(compactSpacing ? 4 : 5));
                 canvas.drawRoundRect(rect, dp(9), dp(9), paint);
             }
-            drawLaneIcon(canvas, lanes[i], icon, cell * i, cell, laneRecommended);
+            float laneGap = compactSpacing ? dp(2) : 0f;
+            drawLaneIcon(canvas, lanes[i], icon, start + cell * i + laneGap,
+                    Math.max(1f, cell - laneGap * 2f), laneRecommended);
         }
     }
 
@@ -190,22 +282,143 @@ public class LaneBarView extends View {
         if (bitmap == null) {
             return false;
         }
+        if (!useCommonBitmapCrop) {
+            float iconHeight = Math.min(getHeight() - dp(4), dp(compactSpacing ? 42 : 48) * iconScaleMultiplier);
+            float iconWidth = iconHeight * bitmap.getWidth() / (float) bitmap.getHeight();
+            float maxWidth = width - dp(compactSpacing ? 1 : 2);
+            if (iconWidth > maxWidth) {
+                iconWidth = maxWidth;
+                iconHeight = iconWidth * bitmap.getHeight() / (float) bitmap.getWidth();
+            }
+            rect.set(left + (width - iconWidth) / 2f, (getHeight() - iconHeight) / 2f,
+                    left + (width + iconWidth) / 2f, (getHeight() + iconHeight) / 2f);
 
-        float iconHeight = Math.min(getHeight() - dp(4), dp(compactSpacing ? 42 : 48) * iconScaleMultiplier);
-        float iconWidth = iconHeight * bitmap.getWidth() / (float) bitmap.getHeight();
-        float maxWidth = width - dp(compactSpacing ? 1 : 2);
+            paint.setFilterBitmap(true);
+            paint.setAlpha(255);
+            canvas.drawBitmap(bitmap, null, rect, paint);
+            paint.setAlpha(255);
+            return true;
+        }
+
+        Rect source = laneBitmapContentBounds("lane_pdf_" + laneCode, bitmap);
+        float iconHeight = Math.min(getHeight() - dp(compactSpacing ? 1 : 4),
+                dp(compactSpacing ? 50 : 48) * iconScaleMultiplier);
+        float iconWidth = iconHeight * source.width() / (float) source.height();
+        float maxWidth = showDividers ? (width - dp(compactSpacing ? 1 : 2)) : width;
         if (iconWidth > maxWidth) {
             iconWidth = maxWidth;
-            iconHeight = iconWidth * bitmap.getHeight() / (float) bitmap.getWidth();
+            iconHeight = iconWidth * source.height() / (float) source.width();
         }
         rect.set(left + (width - iconWidth) / 2f, (getHeight() - iconHeight) / 2f,
                 left + (width + iconWidth) / 2f, (getHeight() + iconHeight) / 2f);
 
         paint.setFilterBitmap(true);
         paint.setAlpha(255);
-        canvas.drawBitmap(bitmap, null, rect, paint);
+        srcRect.set(source);
+        canvas.drawBitmap(bitmap, srcRect, rect, paint);
         paint.setAlpha(255);
         return true;
+    }
+
+    private Rect laneBitmapContentBounds(String resourceName, Bitmap bitmap) {
+        Rect cached = iconBoundsCache.get(resourceName);
+        if (cached != null) {
+            return cached;
+        }
+        Rect bounds;
+        if (!useCommonBitmapCrop) {
+            bounds = new Rect(0, 0, bitmap.getWidth(), bitmap.getHeight());
+        } else if (hasCommonLaneSourceBounds
+                && commonLaneSourceBounds.right <= bitmap.getWidth()
+                && commonLaneSourceBounds.bottom <= bitmap.getHeight()) {
+            bounds = new Rect(commonLaneSourceBounds);
+        } else {
+            int[] insets = laneBitmapTransparentInsets(bitmap);
+            if (insets == null) {
+                bounds = new Rect(0, 0, bitmap.getWidth(), bitmap.getHeight());
+            } else {
+                int insetY = Math.max(0, dp(compactSpacing ? 1 : 2));
+                bounds = new Rect(insets[0], Math.max(0, insets[2] - insetY),
+                        bitmap.getWidth() - insets[1],
+                        Math.min(bitmap.getHeight(), bitmap.getHeight() - insets[3] + insetY));
+            }
+        }
+        iconBoundsCache.put(resourceName, bounds);
+        return bounds;
+    }
+
+    private void updateCommonLaneSourceBounds() {
+        if (!useCommonBitmapCrop) {
+            hasCommonLaneSourceBounds = false;
+            commonLaneSourceBounds.setEmpty();
+            return;
+        }
+        if (lanes == null || lanes.length == 0) {
+            hasCommonLaneSourceBounds = false;
+            return;
+        }
+        int minLeft = Integer.MAX_VALUE;
+        int minRight = Integer.MAX_VALUE;
+        int minTop = Integer.MAX_VALUE;
+        int minBottom = Integer.MAX_VALUE;
+        int width = -1;
+        int height = -1;
+        for (int lane : lanes) {
+            if (lane < 0 || lane > 48) {
+                continue;
+            }
+            Bitmap bitmap = loadLaneBitmap("lane_pdf_" + lane);
+            if (bitmap == null) {
+                continue;
+            }
+            int[] insets = laneBitmapTransparentInsets(bitmap);
+            if (insets == null) {
+                continue;
+            }
+            width = bitmap.getWidth();
+            height = bitmap.getHeight();
+            minLeft = Math.min(minLeft, insets[0]);
+            minRight = Math.min(minRight, insets[1]);
+            minTop = Math.min(minTop, insets[2]);
+            minBottom = Math.min(minBottom, insets[3]);
+        }
+        if (width <= 0 || height <= 0 || minLeft == Integer.MAX_VALUE || minRight == Integer.MAX_VALUE) {
+            hasCommonLaneSourceBounds = false;
+            return;
+        }
+        int insetY = Math.max(0, dp(compactSpacing ? 1 : 2));
+        commonLaneSourceBounds.set(
+                Math.max(0, minLeft),
+                Math.max(0, minTop - insetY),
+                Math.min(width, width - minRight),
+                Math.min(height, height - minBottom + insetY)
+        );
+        hasCommonLaneSourceBounds = !commonLaneSourceBounds.isEmpty();
+    }
+
+    private int[] laneBitmapTransparentInsets(Bitmap bitmap) {
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+        int left = width;
+        int right = -1;
+        int top = height;
+        int bottom = -1;
+        int[] pixels = new int[width];
+        for (int y = 0; y < height; y++) {
+            bitmap.getPixels(pixels, 0, width, 0, y, width, 1);
+            for (int x = 0; x < width; x++) {
+                if (((pixels[x] >>> 24) & 0xFF) > 8) {
+                    if (x < left) left = x;
+                    if (x > right) right = x;
+                    if (y < top) top = y;
+                    if (y > bottom) bottom = y;
+                }
+            }
+        }
+        if (right < left) {
+            return null;
+        }
+        return new int[]{left, width - right - 1, top, height - bottom - 1};
     }
 
     private Bitmap loadLaneBitmap(String resourceName) {
