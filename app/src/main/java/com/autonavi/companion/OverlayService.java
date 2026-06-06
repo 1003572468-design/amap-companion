@@ -411,8 +411,7 @@ public class OverlayService extends Service {
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                        | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                        | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                 PixelFormat.TRANSLUCENT);
         params.gravity = Gravity.TOP | Gravity.LEFT;
         params.x = getSavedOverlayX();
@@ -451,6 +450,9 @@ public class OverlayService extends Service {
                         openMainActivity();
                     }
                     return true;
+                case MotionEvent.ACTION_CANCEL:
+                    dragging = false;
+                    return true;
                 default:
                     return true;
             }
@@ -475,14 +477,6 @@ public class OverlayService extends Service {
             try {
                 windowManager.addView(panel, params);
                 Log.d(TAG, "overlay added");
-                mainHandler.postDelayed(() -> {
-                    if (params != null && panel != null && panel.getParent() != null) {
-                        params.flags &= ~WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
-                        try {
-                            windowManager.updateViewLayout(panel, params);
-                        } catch (Throwable ignored) {}
-                    }
-                }, 4000);
             } catch (Throwable t) {
                 Log.e(TAG, "overlay add failed", t);
             }
