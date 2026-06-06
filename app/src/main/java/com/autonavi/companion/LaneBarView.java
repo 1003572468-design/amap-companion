@@ -283,15 +283,20 @@ public class LaneBarView extends View {
 
 
     private boolean drawAmapLaneBitmap(Canvas canvas, int laneCode, float left, float width, boolean laneRecommended) {
-        if (laneCode < 0 || laneCode > 48) {
+        if (laneCode < 0) {
             return false;
         }
-        Bitmap bitmap = loadLaneBitmap("lane_pdf_" + laneCode);
+        String resourceName = laneCode <= 48
+                ? "lane_pdf_" + laneCode
+                : "lane_special_unknown";
+        float resourceScale = laneCode <= 48 ? 1f : 0.85f;
+        Bitmap bitmap = loadLaneBitmap(resourceName);
         if (bitmap == null) {
             return false;
         }
         if (!useCommonBitmapCrop) {
-            float iconHeight = Math.min(getHeight() - dp(4), dp(compactSpacing ? 42 : 48) * iconScaleMultiplier);
+            float iconHeight = Math.min(getHeight() - dp(4),
+                    dp(compactSpacing ? 42 : 48) * iconScaleMultiplier * resourceScale);
             float iconWidth = iconHeight * bitmap.getWidth() / (float) bitmap.getHeight();
             float maxWidth = width - dp(compactSpacing ? 1 : 2);
             if (iconWidth > maxWidth) {
@@ -308,9 +313,9 @@ public class LaneBarView extends View {
             return true;
         }
 
-        Rect source = laneBitmapContentBounds("lane_pdf_" + laneCode, bitmap);
+        Rect source = laneBitmapContentBounds(resourceName, bitmap);
         float iconHeight = Math.min(getHeight() - dp(compactSpacing ? 1 : 4),
-                dp(compactSpacing ? 50 : 48) * iconScaleMultiplier);
+                dp(compactSpacing ? 50 : 48) * iconScaleMultiplier * resourceScale);
         float iconWidth = iconHeight * source.width() / (float) source.height();
         float maxWidth = showDividers ? (width - dp(compactSpacing ? 1 : 2)) : width;
         if (iconWidth > maxWidth) {

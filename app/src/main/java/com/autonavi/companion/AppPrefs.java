@@ -45,6 +45,7 @@ public final class AppPrefs {
     public static final String KEY_OVERLAY_UI_STYLE             = "overlay_ui_style";
     public static final String KEY_AUTO_START_ENABLED           = "auto_start_enabled";
     public static final String KEY_START_SERVICE_ON_APP_OPEN    = "start_service_on_app_open";
+    public static final String KEY_LAUNCH_TARGET_FROM_DESKTOP   = "launch_target_from_desktop";
     public static final String KEY_SHOW_MAIN_WHEN_TARGET_FOREGROUND  = "show_main_when_target_foreground";
     public static final String KEY_HIDE_MAIN_WHEN_TARGET_FOREGROUND  = "hide_main_when_target_foreground";
     public static final String KEY_HIDE_CLUSTER_WHEN_INACTIVE   = "hide_cluster_when_inactive";
@@ -107,6 +108,10 @@ public final class AppPrefs {
 
     public static boolean isStartServiceOnAppOpenEnabled(Context context) {
         return isBehaviorEnabled(context, KEY_START_SERVICE_ON_APP_OPEN);
+    }
+
+    public static boolean isLaunchTargetFromDesktopEnabled(Context context) {
+        return isBehaviorEnabled(context, KEY_LAUNCH_TARGET_FROM_DESKTOP);
     }
 
     public static boolean isHideMainWhenTargetForegroundEnabled(Context context) {
