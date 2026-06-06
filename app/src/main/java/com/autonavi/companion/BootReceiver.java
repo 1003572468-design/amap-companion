@@ -21,7 +21,7 @@ public class BootReceiver extends BroadcastReceiver {
         if (!isAutoStartEvent) {
             return;
         }
-        if (!MainActivity.isAutoStartEnabled(context)) {
+        if (!AppPrefs.isAutoStartEnabled(context)) {
             Log.d(TAG, "skip auto starting overlay service after " + action);
             return;
         }
