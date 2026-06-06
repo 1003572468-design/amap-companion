@@ -23,14 +23,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Process;
 import android.provider.Settings;
-import android.text.SpannableStringBuilder;
-import android.text.Spanned;
 import android.text.TextUtils;
-import android.text.style.BackgroundColorSpan;
-import android.text.style.BulletSpan;
-import android.text.style.RelativeSizeSpan;
-import android.text.style.StyleSpan;
-import android.text.style.TypefaceSpan;
 import android.view.Display;
 import android.view.Gravity;
 import android.view.View;
@@ -51,57 +44,12 @@ import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 
 public class MainActivity extends Activity {
-    static final String PREFS = "amap_companion";
-    static final String PUBLIC_LOG_DIR = "amap_companion/log";
-    static final String KEY_TARGET_PACKAGE = "target_package";
     static final String KEY_UPDATE_URL = "update_url";
     static final String KEY_UPDATE_CHANNEL = "update_channel";
-    static final String KEY_OVERLAY_SCALE_PERCENT = "overlay_scale_percent";
-    static final String KEY_MAIN_OVERLAY_ENABLED = "main_overlay_enabled";
-    static final String KEY_CLUSTER_MIRROR_ENABLED = "cluster_mirror_enabled";
-    static final String KEY_OVERLAY_X = "overlay_x";
-    static final String KEY_OVERLAY_Y = "overlay_y";
-    static final String KEY_CLUSTER_X = "cluster_x";
-    static final String KEY_CLUSTER_Y = "cluster_y";
-    static final String KEY_CLUSTER_SCALE_PERCENT = "cluster_scale_percent";
-    static final String KEY_CLUSTER_DISPLAY_ID = "cluster_display_id";
-    static final String KEY_SHOW_MODE = "show_mode";
-    static final String KEY_SHOW_TURN = "show_turn";
-    static final String KEY_SHOW_LANE = "show_lane";
-    static final String KEY_SHOW_LIGHT = "show_light";
-    static final String KEY_SHOW_ETA = "show_eta";
-    static final String KEY_SHOW_ALERT = "show_alert";
-    static final String KEY_SHOW_DETAIL = "show_detail";
-    static final String KEY_TRANSPARENT_BACKGROUND = "transparent_background";
-    static final String KEY_BACKGROUND_OPACITY_PERCENT = "background_opacity_percent";
-    static final String KEY_TEXT_MODE = "text_mode";
-    static final String KEY_OVERLAY_UI_STYLE = "overlay_ui_style";
-    static final String KEY_AUTO_START_ENABLED = "auto_start_enabled";
-    static final String KEY_START_SERVICE_ON_APP_OPEN = "start_service_on_app_open";
-    static final String KEY_SHOW_MAIN_WHEN_TARGET_FOREGROUND = "show_main_when_target_foreground";
-    static final String KEY_HIDE_MAIN_WHEN_TARGET_FOREGROUND = "hide_main_when_target_foreground";
-    static final String KEY_HIDE_CLUSTER_WHEN_INACTIVE = "hide_cluster_when_inactive";
-    static final String ACTION_MAIN_OVERLAY_CHANGED = "com.autonavi.companion.MAIN_OVERLAY_CHANGED";
-    static final String ACTION_OVERLAY_SCALE_CHANGED = "com.autonavi.companion.OVERLAY_SCALE_CHANGED";
-    static final String ACTION_CLUSTER_MIRROR_CHANGED = "com.autonavi.companion.CLUSTER_MIRROR_CHANGED";
-    static final String ACTION_CLUSTER_POSITION_CHANGED = "com.autonavi.companion.CLUSTER_POSITION_CHANGED";
-    static final String ACTION_OVERLAY_CONTENT_CHANGED = "com.autonavi.companion.OVERLAY_CONTENT_CHANGED";
-    static final String ACTION_OVERLAY_STYLE_CHANGED = "com.autonavi.companion.OVERLAY_STYLE_CHANGED";
-    static final String ACTION_DISPLAY_POLICY_CHANGED = "com.autonavi.companion.DISPLAY_POLICY_CHANGED";
-    static final String DEFAULT_TARGET_PACKAGE = "com.autonavi.amapClone";
     static final String UPDATE_CHANNEL_SERVER = "server";
     static final String UPDATE_CHANNEL_GITHUB = "github";
     static final String DEFAULT_UPDATE_CHANNEL = UPDATE_CHANNEL_SERVER;
@@ -115,18 +63,6 @@ public class MainActivity extends Activity {
     static final String CUSTOM_MAP_SKILL_MIRROR_URL = "https://gh-proxy.com/https://github.com/zuo-qirun/amap-cruise-wrapper-skill/archive/refs/heads/master.zip";
     static final String CUSTOM_MAP_APK_MIRROR_URL = "https://gh.llkk.cc/https://github.com/zuo-qirun/amap-cruise-wrapper-skill/releases/download/v20260523-cruise-wrapper/amap-auto-cruise-wrapper-20260523.apk";
     static final String DEFAULT_UPDATE_URL = SERVER_UPDATE_URL;
-    static final String TEXT_MODE_LIGHT = "light";
-    static final String TEXT_MODE_AUTO = "auto";
-    static final String OVERLAY_UI_OLD = "old";
-    static final String OVERLAY_UI_NEW = "new";
-    static final String OVERLAY_UI_DYNAMIC_ISLAND = "dynamic_island";
-    static final String OVERLAY_UI_DYNAMIC_ISLAND_COMPACT = "dynamic_island_compact";
-    static final int MIN_BACKGROUND_OPACITY_PERCENT = 0;
-    static final int MAX_BACKGROUND_OPACITY_PERCENT = 90;
-    static final int DEFAULT_BACKGROUND_OPACITY_PERCENT = 90;
-    static final int MIN_OVERLAY_SCALE_PERCENT = 30;
-    static final int MAX_OVERLAY_SCALE_PERCENT = 300;
-    static final int DEFAULT_OVERLAY_SCALE_PERCENT = 200;
     private static final String TARGET_PACKAGE_PREFIX = "com.autonavi.";
     private static final int REQUEST_READ_LOGS_PERMISSION = 7001;
     private static final int REQUEST_STORAGE_PERMISSIONS = 7002;
@@ -164,7 +100,7 @@ public class MainActivity extends Activity {
     }
 
     private void autoStartServiceOnAppOpen() {
-        if (!isStartServiceOnAppOpenEnabled(this)) {
+        if (!AppPrefs.isStartServiceOnAppOpenEnabled(this)) {
             return;
         }
         targetText.postDelayed(() -> startCompanionService(false), 350L);
@@ -296,7 +232,8 @@ public class MainActivity extends Activity {
         section.addView(title, new LinearLayout.LayoutParams(-1, -2));
 
         TextView body = new TextView(this);
-        body.setText("\u53cd\u9988/\u4ea4\u6d41\u7fa4 QQ\u7fa4\uff1a1106923186");
+        body.setText("\u672c\u8f6f\u4ef6\u4e3a GitHub \u5f00\u6e90\u9879\u76ee\uff0c\u53ef\u514d\u8d39\u4f7f\u7528\u3002\n"
+                + "\u53cd\u9988/\u4ea4\u6d41\u7fa4 QQ\u7fa4\uff1a1106923186");
         body.setTextSize(14f);
         body.setTextColor(0xFF334155);
         body.setTextIsSelectable(true);
@@ -386,12 +323,12 @@ public class MainActivity extends Activity {
         addOverlayPreview(box);
 
         SeekBar seekBar = new SeekBar(this);
-        seekBar.setMax(MAX_OVERLAY_SCALE_PERCENT - MIN_OVERLAY_SCALE_PERCENT);
-        seekBar.setProgress(getOverlayScalePercent(this) - MIN_OVERLAY_SCALE_PERCENT);
+        seekBar.setMax(AppPrefs.MAX_OVERLAY_SCALE_PERCENT - AppPrefs.MIN_OVERLAY_SCALE_PERCENT);
+        seekBar.setProgress(AppPrefs.getOverlayScalePercent(this) - AppPrefs.MIN_OVERLAY_SCALE_PERCENT);
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
-                int percent = MIN_OVERLAY_SCALE_PERCENT + progress;
+                int percent = AppPrefs.MIN_OVERLAY_SCALE_PERCENT + progress;
                 updateOverlayScaleText(percent);
                 if (fromUser) {
                     saveOverlayScalePercent(percent);
@@ -404,13 +341,13 @@ public class MainActivity extends Activity {
 
             @Override
             public void onStopTrackingTouch(SeekBar bar) {
-                int percent = MIN_OVERLAY_SCALE_PERCENT + bar.getProgress();
+                int percent = AppPrefs.MIN_OVERLAY_SCALE_PERCENT + bar.getProgress();
                 saveOverlayScalePercent(percent);
                 updateOverlayScaleText(percent);
             }
         });
         box.addView(seekBar, new LinearLayout.LayoutParams(-1, -2));
-        updateOverlayScaleText(getOverlayScalePercent(this));
+        updateOverlayScaleText(AppPrefs.getOverlayScalePercent(this));
         box.addView(button("\u5e94\u7528\u5f53\u524d\u5927\u5c0f\u5230\u60ac\u6d6e\u7a97", v -> notifyOverlayScaleChanged(), 0xFF334155));
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
@@ -448,12 +385,12 @@ public class MainActivity extends Activity {
         box.addView(clusterScaleText, scaleTextLp);
 
         SeekBar seekBar = new SeekBar(this);
-        seekBar.setMax(MAX_OVERLAY_SCALE_PERCENT - MIN_OVERLAY_SCALE_PERCENT);
-        seekBar.setProgress(getClusterScalePercent(this) - MIN_OVERLAY_SCALE_PERCENT);
+        seekBar.setMax(AppPrefs.MAX_OVERLAY_SCALE_PERCENT - AppPrefs.MIN_OVERLAY_SCALE_PERCENT);
+        seekBar.setProgress(AppPrefs.getClusterScalePercent(this) - AppPrefs.MIN_OVERLAY_SCALE_PERCENT);
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
-                int percent = MIN_OVERLAY_SCALE_PERCENT + progress;
+                int percent = AppPrefs.MIN_OVERLAY_SCALE_PERCENT + progress;
                 updateClusterScaleText(percent);
                 if (fromUser) {
                     saveClusterScalePercent(percent);
@@ -467,14 +404,14 @@ public class MainActivity extends Activity {
 
             @Override
             public void onStopTrackingTouch(SeekBar bar) {
-                int percent = MIN_OVERLAY_SCALE_PERCENT + bar.getProgress();
+                int percent = AppPrefs.MIN_OVERLAY_SCALE_PERCENT + bar.getProgress();
                 saveClusterScalePercent(percent);
                 updateClusterScaleText(percent);
                 notifyClusterMirrorChanged();
             }
         });
         box.addView(seekBar, new LinearLayout.LayoutParams(-1, -2));
-        updateClusterScaleText(getClusterScalePercent(this));
+        updateClusterScaleText(AppPrefs.getClusterScalePercent(this));
 
         LinearLayout upRow = new LinearLayout(this);
         upRow.setGravity(Gravity.CENTER);
@@ -519,11 +456,11 @@ public class MainActivity extends Activity {
 
         if (isWideLayout()) {
             addTogglePair(box,
-                    overlayTargetToggle("\u4e3b\u5c4f\u60ac\u6d6e\u7a97", KEY_MAIN_OVERLAY_ENABLED),
-                    overlayTargetToggle("\u526f\u5c4f\u60ac\u6d6e\u7a97", KEY_CLUSTER_MIRROR_ENABLED));
+                    overlayTargetToggle("\u4e3b\u5c4f\u60ac\u6d6e\u7a97", AppPrefs.KEY_MAIN_OVERLAY_ENABLED),
+                    overlayTargetToggle("\u526f\u5c4f\u60ac\u6d6e\u7a97", AppPrefs.KEY_CLUSTER_MIRROR_ENABLED));
         } else {
-            box.addView(overlayTargetToggle("\u4e3b\u5c4f\u60ac\u6d6e\u7a97", KEY_MAIN_OVERLAY_ENABLED));
-            box.addView(overlayTargetToggle("\u526f\u5c4f\u60ac\u6d6e\u7a97", KEY_CLUSTER_MIRROR_ENABLED));
+            box.addView(overlayTargetToggle("\u4e3b\u5c4f\u60ac\u6d6e\u7a97", AppPrefs.KEY_MAIN_OVERLAY_ENABLED));
+            box.addView(overlayTargetToggle("\u526f\u5c4f\u60ac\u6d6e\u7a97", AppPrefs.KEY_CLUSTER_MIRROR_ENABLED));
         }
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
@@ -559,25 +496,26 @@ public class MainActivity extends Activity {
 
         if (isWideLayout()) {
             addTogglePair(grid,
-                    contentToggle("\u9876\u90e8\u72b6\u6001", KEY_SHOW_MODE),
-                    contentToggle("\u8def\u7ebf\u6307\u5f15", KEY_SHOW_TURN));
+                    contentToggle("\u9876\u90e8\u72b6\u6001", AppPrefs.KEY_SHOW_MODE),
+                    contentToggle("\u8def\u7ebf\u6307\u5f15", AppPrefs.KEY_SHOW_TURN));
             addTogglePair(grid,
-                    contentToggle("\u7ea2\u7eff\u706f\u5012\u8ba1\u65f6", KEY_SHOW_LIGHT),
-                    contentToggle("\u8f66\u9053\u4fe1\u606f", KEY_SHOW_LANE));
+                    contentToggle("\u7ea2\u7eff\u706f\u5012\u8ba1\u65f6", AppPrefs.KEY_SHOW_LIGHT),
+                    contentToggle("\u8f66\u9053\u4fe1\u606f", AppPrefs.KEY_SHOW_LANE));
             addTogglePair(grid,
-                    contentToggle("\u5269\u4f59\u91cc\u7a0b\u4e0e\u76ee\u7684\u5730", KEY_SHOW_ETA),
-                    contentToggle("\u9650\u901f/\u7535\u5b50\u773c/\u7ea2\u7eff\u706f\u4e2a\u6570", KEY_SHOW_ALERT));
+                    contentToggle("\u5269\u4f59\u91cc\u7a0b\u4e0e\u76ee\u7684\u5730", AppPrefs.KEY_SHOW_ETA),
+                    contentToggle("\u9650\u901f/\u7535\u5b50\u773c/\u7ea2\u7eff\u706f\u4e2a\u6570", AppPrefs.KEY_SHOW_ALERT));
             addTogglePair(grid,
-                    contentToggle("\u8be6\u7ec6\u72b6\u6001", KEY_SHOW_DETAIL),
-                    null);
+                    contentToggle("\u7ecf\u5178UI\u670d\u52a1\u533a\u4fe1\u606f", AppPrefs.KEY_SHOW_SERVICE_AREA),
+                    contentToggle("\u8be6\u7ec6\u72b6\u6001", AppPrefs.KEY_SHOW_DETAIL));
         } else {
-            grid.addView(contentToggle("\u9876\u90e8\u72b6\u6001", KEY_SHOW_MODE));
-            grid.addView(contentToggle("\u8def\u7ebf\u6307\u5f15", KEY_SHOW_TURN));
-            grid.addView(contentToggle("\u7ea2\u7eff\u706f\u5012\u8ba1\u65f6", KEY_SHOW_LIGHT));
-            grid.addView(contentToggle("\u8f66\u9053\u4fe1\u606f", KEY_SHOW_LANE));
-            grid.addView(contentToggle("\u5269\u4f59\u91cc\u7a0b\u4e0e\u76ee\u7684\u5730", KEY_SHOW_ETA));
-            grid.addView(contentToggle("\u9650\u901f/\u7535\u5b50\u773c/\u7ea2\u7eff\u706f\u4e2a\u6570", KEY_SHOW_ALERT));
-            grid.addView(contentToggle("\u8be6\u7ec6\u72b6\u6001", KEY_SHOW_DETAIL));
+            grid.addView(contentToggle("\u9876\u90e8\u72b6\u6001", AppPrefs.KEY_SHOW_MODE));
+            grid.addView(contentToggle("\u8def\u7ebf\u6307\u5f15", AppPrefs.KEY_SHOW_TURN));
+            grid.addView(contentToggle("\u7ea2\u7eff\u706f\u5012\u8ba1\u65f6", AppPrefs.KEY_SHOW_LIGHT));
+            grid.addView(contentToggle("\u8f66\u9053\u4fe1\u606f", AppPrefs.KEY_SHOW_LANE));
+            grid.addView(contentToggle("\u5269\u4f59\u91cc\u7a0b\u4e0e\u76ee\u7684\u5730", AppPrefs.KEY_SHOW_ETA));
+            grid.addView(contentToggle("\u9650\u901f/\u7535\u5b50\u773c/\u7ea2\u7eff\u706f\u4e2a\u6570", AppPrefs.KEY_SHOW_ALERT));
+            grid.addView(contentToggle("\u7ecf\u5178UI\u670d\u52a1\u533a\u4fe1\u606f", AppPrefs.KEY_SHOW_SERVICE_AREA));
+            grid.addView(contentToggle("\u8be6\u7ec6\u72b6\u6001", AppPrefs.KEY_SHOW_DETAIL));
         }
         addBackgroundOpacityControls(box);
         overlayUiStyleButton = button(overlayUiStyleButtonText(), v -> chooseOverlayUiStyle(), 0xFF334155);
@@ -626,28 +564,41 @@ public class MainActivity extends Activity {
 
         if (isWideLayout()) {
             addTogglePair(grid,
-                    behaviorToggle("开机或亮屏自动启动服务", KEY_AUTO_START_ENABLED),
-                    behaviorToggle("进入软件后自动启动服务", KEY_START_SERVICE_ON_APP_OPEN));
+                    behaviorToggle("开机或亮屏自动启动服务", AppPrefs.KEY_AUTO_START_ENABLED),
+                    behaviorToggle("进入软件后自动启动服务", AppPrefs.KEY_START_SERVICE_ON_APP_OPEN));
             addTogglePair(grid,
-                    behaviorToggle("高德广播自动显示悬浮窗", KEY_SHOW_MAIN_WHEN_TARGET_FOREGROUND),
+                    behaviorToggle("高德广播自动显示悬浮窗", AppPrefs.KEY_SHOW_MAIN_WHEN_TARGET_FOREGROUND),
                     null);
             addTogglePair(grid,
-                    behaviorToggle("高德前台隐藏中控悬浮窗", KEY_HIDE_MAIN_WHEN_TARGET_FOREGROUND),
+                    behaviorToggle("高德前台隐藏中控悬浮窗", AppPrefs.KEY_HIDE_MAIN_WHEN_TARGET_FOREGROUND),
                     null);
             addTogglePair(grid,
-                    behaviorToggle("导航/巡航退出隐藏仪表", KEY_HIDE_CLUSTER_WHEN_INACTIVE),
+                    behaviorToggle("导航/巡航退出隐藏仪表", AppPrefs.KEY_HIDE_CLUSTER_WHEN_INACTIVE),
                     null);
         } else {
-            grid.addView(behaviorToggle("开机或亮屏自动启动服务", KEY_AUTO_START_ENABLED));
-            grid.addView(behaviorToggle("进入软件后自动启动服务", KEY_START_SERVICE_ON_APP_OPEN));
-            grid.addView(behaviorToggle("高德广播自动显示悬浮窗", KEY_SHOW_MAIN_WHEN_TARGET_FOREGROUND));
-            grid.addView(behaviorToggle("高德前台隐藏中控悬浮窗", KEY_HIDE_MAIN_WHEN_TARGET_FOREGROUND));
-            grid.addView(behaviorToggle("导航/巡航退出隐藏仪表", KEY_HIDE_CLUSTER_WHEN_INACTIVE));
+            grid.addView(behaviorToggle("开机或亮屏自动启动服务", AppPrefs.KEY_AUTO_START_ENABLED));
+            grid.addView(behaviorToggle("进入软件后自动启动服务", AppPrefs.KEY_START_SERVICE_ON_APP_OPEN));
+            grid.addView(behaviorToggle("高德广播自动显示悬浮窗", AppPrefs.KEY_SHOW_MAIN_WHEN_TARGET_FOREGROUND));
+            grid.addView(behaviorToggle("高德前台隐藏中控悬浮窗", AppPrefs.KEY_HIDE_MAIN_WHEN_TARGET_FOREGROUND));
+            grid.addView(behaviorToggle("导航/巡航退出隐藏仪表", AppPrefs.KEY_HIDE_CLUSTER_WHEN_INACTIVE));
         }
+
+        addOverspeedBehaviorControls(grid);
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(0, dp(8), 0, 0);
         parent.addView(box, lp);
+    }
+
+    private void addOverspeedBehaviorControls(LinearLayout grid) {
+        CheckBox mild = behaviorToggle("\u666e\u901a\u8d85\u901f\u8fb9\u6846\u63d0\u9192", AppPrefs.KEY_OVERSPEED_MILD_WARNING);
+        CheckBox medium = behaviorToggle("\u8d85\u901f10%\u8fb9\u6846\u63d0\u9192", AppPrefs.KEY_OVERSPEED_MEDIUM_WARNING);
+        if (isWideLayout()) {
+            addTogglePair(grid, mild, medium);
+        } else {
+            grid.addView(mild);
+            grid.addView(medium);
+        }
     }
 
     private void addBackgroundOpacityControls(LinearLayout parent) {
@@ -659,12 +610,12 @@ public class MainActivity extends Activity {
         parent.addView(overlayBackgroundOpacityText, textLp);
 
         SeekBar seekBar = new SeekBar(this);
-        seekBar.setMax(MAX_BACKGROUND_OPACITY_PERCENT - MIN_BACKGROUND_OPACITY_PERCENT);
-        seekBar.setProgress(getBackgroundOpacityPercent(this) - MIN_BACKGROUND_OPACITY_PERCENT);
+        seekBar.setMax(AppPrefs.MAX_BACKGROUND_OPACITY_PERCENT - AppPrefs.MIN_BACKGROUND_OPACITY_PERCENT);
+        seekBar.setProgress(AppPrefs.getBackgroundOpacityPercent(this) - AppPrefs.MIN_BACKGROUND_OPACITY_PERCENT);
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
-                int percent = MIN_BACKGROUND_OPACITY_PERCENT + progress;
+                int percent = AppPrefs.MIN_BACKGROUND_OPACITY_PERCENT + progress;
                 updateBackgroundOpacityText(percent);
                 if (fromUser) {
                     saveBackgroundOpacityPercent(percent);
@@ -679,7 +630,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void onStopTrackingTouch(SeekBar bar) {
-                int percent = MIN_BACKGROUND_OPACITY_PERCENT + bar.getProgress();
+                int percent = AppPrefs.MIN_BACKGROUND_OPACITY_PERCENT + bar.getProgress();
                 saveBackgroundOpacityPercent(percent);
                 updateBackgroundOpacityText(percent);
                 applyOverlayPreviewStyle();
@@ -687,7 +638,7 @@ public class MainActivity extends Activity {
             }
         });
         parent.addView(seekBar, new LinearLayout.LayoutParams(-1, -2));
-        updateBackgroundOpacityText(getBackgroundOpacityPercent(this));
+        updateBackgroundOpacityText(AppPrefs.getBackgroundOpacityPercent(this));
     }
 
     private void addOverlayPreview(LinearLayout parent) {
@@ -864,9 +815,9 @@ public class MainActivity extends Activity {
         view.setPadding(dp(4), dp(3), dp(7), dp(3));
         GradientDrawable bg = new GradientDrawable();
         bg.setOrientation(GradientDrawable.Orientation.LEFT_RIGHT);
-        bg.setColors(new int[]{withAlpha(color, 34), withAlpha(color, 0)});
+        bg.setColors(new int[]{AppPrefs.withAlpha(color, 34), AppPrefs.withAlpha(color, 0)});
         bg.setCornerRadius(dp(12));
-        bg.setStroke(dp(1), withAlpha(color, 78));
+        bg.setStroke(dp(1), AppPrefs.withAlpha(color, 78));
         view.setBackground(bg);
 
         TextView arrow = new TextView(this);
@@ -1048,7 +999,7 @@ public class MainActivity extends Activity {
         }
         sortAppChoices(choices);
         if (choices.isEmpty()) {
-            choices.add(new AppChoice(DEFAULT_TARGET_PACKAGE, DEFAULT_TARGET_PACKAGE, false, false, false, true));
+            choices.add(new AppChoice(AppPrefs.DEFAULT_TARGET_PACKAGE, AppPrefs.DEFAULT_TARGET_PACKAGE, false, false, false, true));
         }
         LinearLayout dialogContent = new LinearLayout(this);
         dialogContent.setOrientation(LinearLayout.VERTICAL);
@@ -1082,7 +1033,7 @@ public class MainActivity extends Activity {
             choices.clear();
             choices.addAll(allChoices);
             if (choices.isEmpty()) {
-                choices.add(new AppChoice(DEFAULT_TARGET_PACKAGE, DEFAULT_TARGET_PACKAGE, false, false, false, true));
+                choices.add(new AppChoice(AppPrefs.DEFAULT_TARGET_PACKAGE, AppPrefs.DEFAULT_TARGET_PACKAGE, false, false, false, true));
             }
             hint.setText("\u5df2\u663e\u793a\u6240\u6709\u53ef\u89c1\u5e94\u7528\u5305\u3002");
             adapter.notifyDataSetChanged();
@@ -1167,9 +1118,9 @@ public class MainActivity extends Activity {
     }
 
     private void startCompanionService(boolean showToast) {
-        if (!isMainOverlayEnabled(this)
-                && !isClusterMirrorEnabled(this)
-                && !isShowMainWhenTargetForegroundEnabled(this)) {
+        if (!AppPrefs.isMainOverlayEnabled(this)
+                && !AppPrefs.isClusterMirrorEnabled(this)
+                && !AppPrefs.isShowMainWhenTargetForegroundEnabled(this)) {
             if (showToast) {
                 Toast.makeText(this, "\u8bf7\u5148\u52fe\u9009\u4e3b\u5c4f\u60ac\u6d6e\u7a97\u3001\u526f\u5c4f\u60ac\u6d6e\u7a97\u6216\u9ad8\u5fb7\u5e7f\u64ad\u81ea\u52a8\u663e\u793a", Toast.LENGTH_LONG).show();
             }
@@ -1184,11 +1135,14 @@ public class MainActivity extends Activity {
     }
 
     private void stopCompanionService() {
-        saveBehaviorEnabled(KEY_SHOW_MAIN_WHEN_TARGET_FOREGROUND, false);
-        notifyMainOverlayChanged();
-        notifyClusterMirrorChanged();
-        notifyDisplayPolicyChanged();
-        stopService(new Intent(this, OverlayService.class));
+        saveBehaviorEnabled(AppPrefs.KEY_SHOW_MAIN_WHEN_TARGET_FOREGROUND, false);
+        Intent stopIntent = new Intent(this, OverlayService.class);
+        stopIntent.setAction(OverlayService.ACTION_STOP_SERVICE);
+        try {
+            startService(stopIntent);
+        } catch (Throwable ignored) {
+            stopService(new Intent(this, OverlayService.class));
+        }
         Toast.makeText(this, "\u5df2\u5173\u95ed\u4f34\u4fa3\u670d\u52a1", Toast.LENGTH_SHORT).show();
     }
 
@@ -1203,7 +1157,7 @@ public class MainActivity extends Activity {
     }
 
     private void openTargetApp() {
-        Intent launch = getPackageManager().getLaunchIntentForPackage(getTargetPackage(this));
+        Intent launch = getPackageManager().getLaunchIntentForPackage(AppPrefs.getTargetPackage(this));
         if (launch != null) {
             startActivity(launch);
         }
@@ -1218,7 +1172,7 @@ public class MainActivity extends Activity {
                 DisplayChoice choice = choices.get(i);
                 labels[i + 1] = choice.label + "\nID " + choice.displayId;
             }
-            int currentId = getClusterDisplayId(this);
+            int currentId = AppPrefs.getClusterDisplayId(this);
             int checked = 0;
             for (int i = 0; i < choices.size(); i++) {
                 if (choices.get(i).displayId == currentId) {
@@ -1257,7 +1211,7 @@ public class MainActivity extends Activity {
         content.setPadding(dp(8), 0, dp(8), 0);
 
         TextView hint = new TextView(this);
-        hint.setText("\u53cd\u9988 bug \u65f6\u53ef\u63d0\u4ea4\u65e5\u5fd7\u3002\u4f18\u5148\u4fdd\u5b58\u5230 /sdcard/" + PUBLIC_LOG_DIR + "\uff1b\u82e5\u7cfb\u7edf\u4e0d\u6388\u6743\uff0c\u4f1a\u81ea\u52a8\u56de\u9000\u5230\u5e94\u7528\u79c1\u6709\u65e5\u5fd7\u76ee\u5f55\u3002");
+        hint.setText("\u53cd\u9988 bug \u65f6\u53ef\u63d0\u4ea4\u65e5\u5fd7\u3002\u4f18\u5148\u4fdd\u5b58\u5230 /sdcard/" + LogCollector.PUBLIC_LOG_DIR + "\uff1b\u82e5\u7cfb\u7edf\u4e0d\u6388\u6743\uff0c\u4f1a\u81ea\u52a8\u56de\u9000\u5230\u5e94\u7528\u79c1\u6709\u65e5\u5fd7\u76ee\u5f55\u3002");
         hint.setTextSize(13);
         hint.setTextColor(0xFF4B5563);
         hint.setPadding(dp(16), dp(6), dp(16), dp(10));
@@ -1343,7 +1297,7 @@ public class MainActivity extends Activity {
             }
         }
         if (showSummary) {
-            String logs = hasPermission(Manifest.permission.READ_LOGS)
+            String logs = LogCollector.hasPermission(this, Manifest.permission.READ_LOGS)
                     ? "READ_LOGS 已授权"
                     : "READ_LOGS 未授权；普通系统通常需要 shell/系统权限才会放行";
             Toast.makeText(this, logs, Toast.LENGTH_LONG).show();
@@ -1380,7 +1334,7 @@ public class MainActivity extends Activity {
                     Toast.makeText(this, "\u65e0\u6cd5\u6253\u5f00\u6240\u6709\u6587\u4ef6\u8bbf\u95ee\u6743\u9650\u8bbe\u7f6e", Toast.LENGTH_SHORT).show();
                 }
             }
-            Toast.makeText(this, "\u8bf7\u5f00\u542f\u201c\u6240\u6709\u6587\u4ef6\u8bbf\u95ee\u6743\u9650\u201d\uff0c\u7528\u4e8e\u4fdd\u5b58\u5230 /sdcard/" + PUBLIC_LOG_DIR, Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "\u8bf7\u5f00\u542f\u201c\u6240\u6709\u6587\u4ef6\u8bbf\u95ee\u6743\u9650\u201d\uff0c\u7528\u4e8e\u4fdd\u5b58\u5230 /sdcard/" + LogCollector.PUBLIC_LOG_DIR, Toast.LENGTH_LONG).show();
         } else if (openSettings) {
             Toast.makeText(this, storagePermissionSummary(), Toast.LENGTH_LONG).show();
         }
@@ -1389,7 +1343,7 @@ public class MainActivity extends Activity {
     private void refreshLogcat(TextView logText, ScrollView logScroll) {
         logText.setText("\u6b63\u5728\u8bfb\u53d6 logcat...");
         new Thread(() -> {
-            String text = collectLogcat();
+            String text = LogCollector.collectLogcat(this);
             runOnUiThread(() -> {
                 logText.setText(text);
                 logScroll.post(() -> logScroll.fullScroll(View.FOCUS_DOWN));
@@ -1397,162 +1351,22 @@ public class MainActivity extends Activity {
         }, "amap-logcat-reader").start();
     }
 
-    private String collectLogcat() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("AMap Companion log report\n");
-        sb.append("time=").append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(new Date())).append('\n');
-        sb.append("package=").append(getPackageName()).append('\n');
-        sb.append("version=").append(currentVersionName()).append(" (").append(currentVersionCode()).append(")\n");
-        sb.append("targetPackage=").append(getTargetPackage(this)).append('\n');
-        sb.append("android=").append(Build.VERSION.RELEASE).append(" sdk=").append(Build.VERSION.SDK_INT).append('\n');
-        sb.append("readLogsPermission=").append(hasPermission(Manifest.permission.READ_LOGS)).append('\n');
-        sb.append("publicLogDirWritable=").append(canWritePublicLogDir()).append('\n');
-        sb.append("preferredLogDir=/sdcard/").append(PUBLIC_LOG_DIR).append('\n');
-        sb.append("note=Android may restrict third-party apps to their own logs only.\n\n");
-        int lines = appendLogcatCommand(sb, "filtered", new String[]{
-                "logcat", "-d", "-v", "time", "-t", "1000",
-                "AmapCompanion:D", "AndroidRuntime:E", "System.err:W", "*:S"
-        });
-        if (lines == 0) {
-            lines = appendLogcatCommand(sb, "recent", new String[]{
-                    "logcat", "-d", "-v", "time", "-t", "300"
-            });
-        }
-        if (lines == 0) {
-            sb.append("\n(no logcat output; system may restrict log access or logs may be empty)\n");
-        }
-        return sb.toString();
-    }
-
-    private String currentVersionName() {
-        try {
-            return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
-        } catch (Throwable t) {
-            return "unknown";
-        }
-    }
-
-    private long currentVersionCode() {
-        try {
-            android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                return info.getLongVersionCode();
-            }
-            return info.versionCode;
-        } catch (Throwable t) {
-            return -1;
-        }
-    }
-
-    private int appendLogcatCommand(StringBuilder sb, String label, String[] command) {
-        sb.append("---- logcat ").append(label).append(" ----\n");
-        java.lang.Process process = null;
-        int lines = 0;
-        try {
-            process = Runtime.getRuntime().exec(command);
-            lines = appendStream(sb, process.getInputStream());
-            int exit = process.waitFor();
-            StringBuilder err = new StringBuilder();
-            appendStream(err, process.getErrorStream());
-            if (err.length() > 0) {
-                sb.append("\n---- logcat stderr ----\n").append(err);
-            }
-            sb.append("\n---- logcat ").append(label).append(" exit=").append(exit).append(" lines=").append(lines).append(" ----\n");
-        } catch (Throwable t) {
-            sb.append("\nlogcat failed: ").append(t.getClass().getSimpleName()).append(": ").append(t.getMessage()).append('\n');
-        } finally {
-            if (process != null) {
-                process.destroy();
-            }
-        }
-        return lines;
-    }
-
-    private int appendStream(StringBuilder sb, InputStream stream) throws Exception {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(stream));
-        String line;
-        int lines = 0;
-        while ((line = reader.readLine()) != null) {
-            sb.append(line).append('\n');
-            lines++;
-        }
-        return lines;
-    }
-
     private void saveLogText(String text) {
         try {
-            File dir = resolveWritableLogDir();
-            String name = "amap_companion_log_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CHINA).format(new Date()) + ".txt";
-            File out = new File(dir, name);
-            OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(out), "UTF-8");
-            try {
-                writer.write(text);
-            } finally {
-                writer.close();
+            LogCollector.SaveResult result = LogCollector.saveLog(this, text);
+            if (result.fallback) {
+                Toast.makeText(this, "\u65e0\u6cd5\u5199\u5165 /sdcard/" + LogCollector.PUBLIC_LOG_DIR
+                        + "\uff0c\u5df2\u56de\u9000\u5230\uff1a" + result.file.getParent(), Toast.LENGTH_LONG).show();
             }
-            Toast.makeText(this, "\u65e5\u5fd7\u5df2\u4fdd\u5b58\uff1a" + out.getAbsolutePath() + "\n\u53cd\u9988 bug \u65f6\u53ef\u63d0\u4ea4\u8be5\u6587\u4ef6", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "\u65e5\u5fd7\u5df2\u4fdd\u5b58\uff1a" + result.file.getAbsolutePath()
+                    + "\n\u53cd\u9988 bug \u65f6\u53ef\u63d0\u4ea4\u8be5\u6587\u4ef6", Toast.LENGTH_LONG).show();
         } catch (Throwable t) {
             Toast.makeText(this, "\u4fdd\u5b58\u65e5\u5fd7\u5931\u8d25\uff1a" + t.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
-    private File resolveWritableLogDir() throws Exception {
-        File primary = new File(Environment.getExternalStorageDirectory(), PUBLIC_LOG_DIR);
-        if (ensureWritableDir(primary)) {
-            return primary;
-        }
-        File fallback = getExternalFilesDir("logs");
-        if (fallback == null) {
-            fallback = new File(getCacheDir(), "logs");
-        }
-        if (ensureWritableDir(fallback)) {
-            Toast.makeText(this, "\u65e0\u6cd5\u5199\u5165 /sdcard/" + PUBLIC_LOG_DIR + "\uff0c\u5df2\u56de\u9000\u5230\uff1a" + fallback.getAbsolutePath(), Toast.LENGTH_LONG).show();
-            return fallback;
-        }
-        throw new IllegalStateException("no writable log dir");
-    }
-
-    private boolean ensureWritableDir(File dir) {
-        try {
-            if (!dir.exists() && !dir.mkdirs()) {
-                return false;
-            }
-            File probe = new File(dir, ".write_test");
-            FileOutputStream out = new FileOutputStream(probe);
-            try {
-                out.write(1);
-            } finally {
-                out.close();
-            }
-            if (probe.exists()) {
-                probe.delete();
-            }
-            return true;
-        } catch (Throwable t) {
-            return false;
-        }
-    }
-
-    private boolean canWritePublicLogDir() {
-        return ensureWritableDir(new File(Environment.getExternalStorageDirectory(), PUBLIC_LOG_DIR));
-    }
-
-    private boolean hasPermission(String permission) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            return true;
-        }
-        try {
-            return checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
-        } catch (Throwable t) {
-            return false;
-        }
-    }
-
     private String storagePermissionSummary() {
-        if (canWritePublicLogDir()) {
-            return "/sdcard/" + PUBLIC_LOG_DIR + " 可写，保存日志会优先使用该目录";
-        }
-        return "/sdcard/" + PUBLIC_LOG_DIR + " 不可写，保存日志会自动回退到应用私有目录";
+        return LogCollector.storagePermissionSummary(this);
     }
 
     private void copyLogText(String text) {
@@ -1601,7 +1415,7 @@ public class MainActivity extends Activity {
 
     private void updateTargetText() {
         if (targetText != null) {
-            targetText.setText("\u76ee\u6807\u5e94\u7528\n" + getTargetPackage(this));
+            targetText.setText("\u76ee\u6807\u5e94\u7528\n" + AppPrefs.getTargetPackage(this));
         }
     }
 
@@ -1638,7 +1452,7 @@ public class MainActivity extends Activity {
 
     private void showUpdateDetail(Updater.UpdateInfo info) {
         TextView message = new TextView(this);
-        message.setText(renderMarkdown(info.detailMarkdown()));
+        message.setText(MarkdownRenderer.render(this, info.detailMarkdown()));
         message.setTextColor(0xFF0F172A);
         message.setTextSize(14f);
         message.setLineSpacing(dp(2), 1.0f);
@@ -1658,76 +1472,6 @@ public class MainActivity extends Activity {
                 .show();
     }
 
-    private CharSequence renderMarkdown(String markdown) {
-        SpannableStringBuilder out = new SpannableStringBuilder();
-        if (TextUtils.isEmpty(markdown)) {
-            return out;
-        }
-        boolean codeBlock = false;
-        String[] lines = markdown.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1);
-        for (String line : lines) {
-            if (line.trim().startsWith("```")) {
-                codeBlock = !codeBlock;
-                continue;
-            }
-            int start = out.length();
-            if (codeBlock) {
-                out.append(line).append('\n');
-                out.setSpan(new TypefaceSpan("monospace"), start, out.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                out.setSpan(new BackgroundColorSpan(0xFFE5E7EB), start, out.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                continue;
-            }
-            if (line.startsWith("## ")) {
-                appendInlineMarkdown(out, line.substring(3));
-                int end = out.length();
-                out.append('\n');
-                out.setSpan(new StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                out.setSpan(new RelativeSizeSpan(1.18f), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            } else if (line.startsWith("# ")) {
-                appendInlineMarkdown(out, line.substring(2));
-                int end = out.length();
-                out.append('\n');
-                out.setSpan(new StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                out.setSpan(new RelativeSizeSpan(1.28f), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            } else if (line.startsWith("- ")) {
-                appendInlineMarkdown(out, line.substring(2));
-                int end = out.length();
-                out.append('\n');
-                out.setSpan(new BulletSpan(dp(10)), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            } else {
-                appendInlineMarkdown(out, line);
-                out.append('\n');
-            }
-        }
-        return out;
-    }
-
-    private void appendInlineMarkdown(SpannableStringBuilder out, String text) {
-        if (TextUtils.isEmpty(text)) {
-            return;
-        }
-        int index = 0;
-        while (index < text.length()) {
-            int open = text.indexOf('`', index);
-            if (open < 0) {
-                out.append(text.substring(index));
-                return;
-            }
-            out.append(text.substring(index, open));
-            int close = text.indexOf('`', open + 1);
-            if (close < 0) {
-                out.append(text.substring(open));
-                return;
-            }
-            int start = out.length();
-            out.append(text.substring(open + 1, close));
-            int end = out.length();
-            out.setSpan(new TypefaceSpan("monospace"), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            out.setSpan(new BackgroundColorSpan(0xFFE5E7EB), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            index = close + 1;
-        }
-    }
-
     private void installUpdate(Updater.UpdateInfo info) {
         updateUpdateText("\u51c6\u5907\u66f4\u65b0...\n" + info.remoteVersionName + " (" + info.remoteVersionCode + ")");
         new Thread(() -> Updater.install(this, info,
@@ -1741,14 +1485,14 @@ public class MainActivity extends Activity {
     }
 
     private void saveTargetPackage(String packageName) {
-        getSharedPreferences(PREFS, MODE_PRIVATE)
+        getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE)
                 .edit()
-                .putString(KEY_TARGET_PACKAGE, packageName)
+                .putString(AppPrefs.KEY_TARGET_PACKAGE, packageName)
                 .apply();
     }
 
     private void saveUpdateUrl(String url) {
-        getSharedPreferences(PREFS, MODE_PRIVATE)
+        getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE)
                 .edit()
                 .putString(KEY_UPDATE_URL, TextUtils.isEmpty(url) ? DEFAULT_UPDATE_URL : url)
                 .apply();
@@ -1756,7 +1500,7 @@ public class MainActivity extends Activity {
 
     private void saveUpdateChannel(String channel) {
         String normalized = UPDATE_CHANNEL_GITHUB.equals(channel) ? UPDATE_CHANNEL_GITHUB : UPDATE_CHANNEL_SERVER;
-        getSharedPreferences(PREFS, MODE_PRIVATE)
+        getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE)
                 .edit()
                 .putString(KEY_UPDATE_CHANNEL, normalized)
                 .putString(KEY_UPDATE_URL, channelToUpdateUrl(normalized))
@@ -1764,7 +1508,7 @@ public class MainActivity extends Activity {
     }
 
     private void persistDefaultUpdateUrl() {
-        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        SharedPreferences prefs = getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE);
         String channel = prefs.getString(KEY_UPDATE_CHANNEL, DEFAULT_UPDATE_CHANNEL);
         if (!UPDATE_CHANNEL_GITHUB.equals(channel)) {
             channel = UPDATE_CHANNEL_SERVER;
@@ -1780,7 +1524,7 @@ public class MainActivity extends Activity {
     }
 
     private String getUpdateChannel() {
-        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        SharedPreferences prefs = getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE);
         String channel = prefs.getString(KEY_UPDATE_CHANNEL, DEFAULT_UPDATE_CHANNEL);
         if (UPDATE_CHANNEL_GITHUB.equals(channel)) {
             return UPDATE_CHANNEL_GITHUB;
@@ -1806,15 +1550,15 @@ public class MainActivity extends Activity {
     }
 
     private void saveOverlayScalePercent(int percent) {
-        getSharedPreferences(PREFS, MODE_PRIVATE)
+        getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE)
                 .edit()
-                .putInt(KEY_OVERLAY_SCALE_PERCENT, clampOverlayScalePercent(percent))
+                .putInt(AppPrefs.KEY_OVERLAY_SCALE_PERCENT, AppPrefs.clampOverlayScalePercent(percent))
                 .apply();
     }
 
     private void updateOverlayScaleText(int percent) {
         if (overlayScaleText != null) {
-            overlayScaleText.setText("\u60ac\u6d6e\u7a97\u5927\u5c0f " + clampOverlayScalePercent(percent) + "%");
+            overlayScaleText.setText("\u60ac\u6d6e\u7a97\u5927\u5c0f " + AppPrefs.clampOverlayScalePercent(percent) + "%");
         }
         updateOverlayPreviewScale(percent);
     }
@@ -1823,7 +1567,7 @@ public class MainActivity extends Activity {
         if (overlayPreviewPanel == null || overlayPreviewStage == null) {
             return;
         }
-        float scale = clampOverlayScalePercent(percent) / 100f;
+        float scale = AppPrefs.clampOverlayScalePercent(percent) / 100f;
         overlayPreviewPanel.setScaleX(scale);
         overlayPreviewPanel.setScaleY(scale);
         FrameLayout.LayoutParams panelLp = (FrameLayout.LayoutParams) overlayPreviewPanel.getLayoutParams();
@@ -1838,7 +1582,7 @@ public class MainActivity extends Activity {
     private CheckBox contentToggle(String text, String key) {
         CheckBox checkBox = new CheckBox(this);
         checkBox.setText(text);
-        checkBox.setChecked(isOverlayContentEnabled(this, key));
+        checkBox.setChecked(AppPrefs.isOverlayContentEnabled(this, key));
         checkBox.setTextSize(14f);
         checkBox.setTextColor(0xFF0F172A);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -1856,7 +1600,7 @@ public class MainActivity extends Activity {
     private CheckBox behaviorToggle(String text, String key) {
         CheckBox checkBox = new CheckBox(this);
         checkBox.setText(text);
-        checkBox.setChecked(isBehaviorEnabled(this, key));
+        checkBox.setChecked(AppPrefs.isBehaviorEnabled(this, key));
         checkBox.setTextSize(14f);
         checkBox.setTextColor(0xFF0F172A);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -1865,13 +1609,13 @@ public class MainActivity extends Activity {
         checkBox.setPadding(0, dp(2), 0, dp(2));
         checkBox.setOnCheckedChangeListener((CompoundButton buttonView, boolean isChecked) -> {
             saveBehaviorEnabled(key, isChecked);
-            if (KEY_HIDE_MAIN_WHEN_TARGET_FOREGROUND.equals(key)
-                    && isChecked && !hasUsageStatsAccess(this)) {
+            if (AppPrefs.KEY_HIDE_MAIN_WHEN_TARGET_FOREGROUND.equals(key)
+                    && isChecked && !AppPrefs.hasUsageStatsAccess(this)) {
                 Toast.makeText(this, "请为 AMap Companion 开启使用情况访问权限", Toast.LENGTH_LONG).show();
                 openUsageAccessSettings();
             }
             if (isChecked) {
-                if (KEY_START_SERVICE_ON_APP_OPEN.equals(key)) {
+                if (AppPrefs.KEY_START_SERVICE_ON_APP_OPEN.equals(key)) {
                     startCompanionService(false);
                 } else {
                     startOverlayService();
@@ -1888,9 +1632,9 @@ public class MainActivity extends Activity {
     private CheckBox overlayTargetToggle(String text, String key) {
         CheckBox checkBox = new CheckBox(this);
         checkBox.setText(text);
-        checkBox.setChecked(KEY_CLUSTER_MIRROR_ENABLED.equals(key)
-                ? isClusterMirrorEnabled(this)
-                : isMainOverlayEnabled(this));
+        checkBox.setChecked(AppPrefs.KEY_CLUSTER_MIRROR_ENABLED.equals(key)
+                ? AppPrefs.isClusterMirrorEnabled(this)
+                : AppPrefs.isMainOverlayEnabled(this));
         checkBox.setTextSize(14f);
         checkBox.setTextColor(0xFF0F172A);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -1898,7 +1642,7 @@ public class MainActivity extends Activity {
         }
         checkBox.setPadding(0, dp(2), 0, dp(2));
         checkBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (KEY_CLUSTER_MIRROR_ENABLED.equals(key)) {
+            if (AppPrefs.KEY_CLUSTER_MIRROR_ENABLED.equals(key)) {
                 saveClusterMirrorEnabled(isChecked);
                 if (isChecked) {
                     startOverlayService();
@@ -1925,27 +1669,27 @@ public class MainActivity extends Activity {
     }
 
     private void saveOverlayContentEnabled(String key, boolean enabled) {
-        getSharedPreferences(PREFS, MODE_PRIVATE)
+        getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE)
                 .edit()
                 .putBoolean(key, enabled)
                 .apply();
     }
 
     private void saveBehaviorEnabled(String key, boolean enabled) {
-        getSharedPreferences(PREFS, MODE_PRIVATE)
+        getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE)
                 .edit()
                 .putBoolean(key, enabled)
                 .apply();
     }
 
     private void updateOverlayPreviewContentVisibility() {
-        setPreviewVisibility(previewModeText, isOverlayContentEnabled(this, KEY_SHOW_MODE));
-        setPreviewVisibility(previewTurnText, isOverlayContentEnabled(this, KEY_SHOW_TURN));
-        setPreviewVisibility(previewLightRow, isOverlayContentEnabled(this, KEY_SHOW_LIGHT));
-        setPreviewVisibility(previewLaneSection, isOverlayContentEnabled(this, KEY_SHOW_LANE));
-        setPreviewVisibility(previewEtaText, isOverlayContentEnabled(this, KEY_SHOW_ETA));
-        setPreviewVisibility(previewAlertText, isOverlayContentEnabled(this, KEY_SHOW_ALERT));
-        setPreviewVisibility(previewDetailText, isOverlayContentEnabled(this, KEY_SHOW_DETAIL));
+        setPreviewVisibility(previewModeText, AppPrefs.isOverlayContentEnabled(this, AppPrefs.KEY_SHOW_MODE));
+        setPreviewVisibility(previewTurnText, AppPrefs.isOverlayContentEnabled(this, AppPrefs.KEY_SHOW_TURN));
+        setPreviewVisibility(previewLightRow, AppPrefs.isOverlayContentEnabled(this, AppPrefs.KEY_SHOW_LIGHT));
+        setPreviewVisibility(previewLaneSection, AppPrefs.isOverlayContentEnabled(this, AppPrefs.KEY_SHOW_LANE));
+        setPreviewVisibility(previewEtaText, AppPrefs.isOverlayContentEnabled(this, AppPrefs.KEY_SHOW_ETA));
+        setPreviewVisibility(previewAlertText, AppPrefs.isOverlayContentEnabled(this, AppPrefs.KEY_SHOW_ALERT));
+        setPreviewVisibility(previewDetailText, AppPrefs.isOverlayContentEnabled(this, AppPrefs.KEY_SHOW_DETAIL));
     }
 
     private void applyOverlayPreviewStyle() {
@@ -1957,7 +1701,7 @@ public class MainActivity extends Activity {
         if (overlayTextModeButton != null) {
             overlayTextModeButton.setText(textModeButtonText());
         }
-        updateBackgroundOpacityText(getBackgroundOpacityPercent(this));
+        updateBackgroundOpacityText(AppPrefs.getBackgroundOpacityPercent(this));
     }
 
     private void applyOverlayPreviewPanelStyle() {
@@ -1987,49 +1731,29 @@ public class MainActivity extends Activity {
     private GradientDrawable createPreviewPanelBackground() {
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(dp(7));
-        int opacity = getBackgroundOpacityPercent(this);
-        bg.setColor(withAlpha(0xFF111827, opacity));
-        bg.setStroke(dp(1), withAlpha(0xFFFFFFFF, strokeOpacityForBackground(opacity)));
+        int opacity = AppPrefs.getBackgroundOpacityPercent(this);
+        bg.setColor(AppPrefs.withAlpha(0xFF111827, opacity));
+        bg.setStroke(dp(1), AppPrefs.withAlpha(0xFFFFFFFF, AppPrefs.strokeOpacityForBackground(opacity)));
         return bg;
     }
 
     private String textModeButtonText() {
-        return isAutoTextMode(this)
+        return AppPrefs.isAutoTextMode(this)
                 ? "\u6587\u5b57\u6a21\u5f0f\uff1a\u81ea\u52a8\uff08\u6839\u636e\u900f\u660e\u5ea6\u81ea\u52a8\u5207\u6362\uff09"
                 : "\u6587\u5b57\u6a21\u5f0f\uff1a\u6d45\u8272";
     }
 
     private String overlayUiStyleButtonText() {
-        String style = getOverlayUiStyle(this);
-        if (OVERLAY_UI_DYNAMIC_ISLAND_COMPACT.equals(style)) {
-            return "\u60ac\u6d6e\u7a97\u6837\u5f0f\uff1a\u7075\u52a8\u5c9b\uff08\u7d27\u51d1\uff09";
-        }
-        if (OVERLAY_UI_DYNAMIC_ISLAND.equals(style)) {
-            return "\u60ac\u6d6e\u7a97\u6837\u5f0f\uff1a\u7075\u52a8\u5c9b\uff08\u6d4b\u8bd5\uff09";
-        }
-        if (OVERLAY_UI_NEW.equals(style)) {
-            return "\u60ac\u6d6e\u7a97\u6837\u5f0f\uff1a\u65b0 UI\uff08\u6d4b\u8bd5\u4e2d\uff09";
-        }
-        return "\u60ac\u6d6e\u7a97\u6837\u5f0f\uff1a\u65e7 UI";
+        return "\u60ac\u6d6e\u7a97\u6837\u5f0f\uff1a" + OverlayUiStyles.displayName(AppPrefs.getOverlayUiStyle(this));
     }
 
     private void chooseOverlayUiStyle() {
-        String[] labels = {
-                "\u65e7 UI\uff08\u9ed8\u8ba4\uff09",
-                "\u7075\u52a8\u5c9b\uff08\u7d27\u51d1\uff09",
-                "\u7075\u52a8\u5c9b\uff08\u6d4b\u8bd5\uff09",
-                "\u65b0 UI\uff08\u5361\u7247\u6837\u5f0f\uff0c\u6d4b\u8bd5\u4e2d\uff09"
-        };
-        String currentStyle = getOverlayUiStyle(this);
-        int checked = OVERLAY_UI_DYNAMIC_ISLAND.equals(currentStyle) ? 2
-                : OVERLAY_UI_DYNAMIC_ISLAND_COMPACT.equals(currentStyle) ? 1
-                : OVERLAY_UI_NEW.equals(currentStyle) ? 3 : 0;
+        String currentStyle = AppPrefs.getOverlayUiStyle(this);
+        int checked = OverlayUiStyles.indexOf(currentStyle);
         new AlertDialog.Builder(this)
                 .setTitle("\u9009\u62e9\u60ac\u6d6e\u7a97\u6837\u5f0f")
-                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
-                    String style = which == 1 ? OVERLAY_UI_DYNAMIC_ISLAND_COMPACT
-                            : which == 2 ? OVERLAY_UI_DYNAMIC_ISLAND
-                            : which == 3 ? OVERLAY_UI_NEW : OVERLAY_UI_OLD;
+                .setSingleChoiceItems(OverlayUiStyles.labels(), checked, (dialog, which) -> {
+                    String style = OverlayUiStyles.ALL[which].id;
                     saveOverlayUiStyle(style);
                     applyOverlayPreviewStyle();
                     notifyOverlayStyleChanged();
@@ -2044,11 +1768,11 @@ public class MainActivity extends Activity {
                 "\u81ea\u52a8\u6a21\u5f0f\uff08\u6839\u636e\u80cc\u666f\u900f\u660e\u5ea6\u81ea\u52a8\u66f4\u6539\u6587\u5b57\u989c\u8272\uff09",
                 "\u6d45\u8272\u6a21\u5f0f\uff08\u59cb\u7ec8\u4f7f\u7528\u6d45\u8272\u6587\u5b57\uff09"
         };
-        int checked = isAutoTextMode(this) ? 0 : 1;
+        int checked = AppPrefs.isAutoTextMode(this) ? 0 : 1;
         new AlertDialog.Builder(this)
                 .setTitle("\u9009\u62e9\u6587\u5b57\u6a21\u5f0f")
                 .setSingleChoiceItems(labels, checked, (dialog, which) -> {
-                    saveOverlayTextMode(which == 0 ? TEXT_MODE_AUTO : TEXT_MODE_LIGHT);
+                    saveOverlayTextMode(which == 0 ? AppPrefs.TEXT_MODE_AUTO : AppPrefs.TEXT_MODE_LIGHT);
                     applyOverlayPreviewStyle();
                     notifyOverlayStyleChanged();
                     dialog.dismiss();
@@ -2058,56 +1782,53 @@ public class MainActivity extends Activity {
     }
 
     private void saveOverlayTextMode(String mode) {
-        getSharedPreferences(PREFS, MODE_PRIVATE)
+        getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE)
                 .edit()
-                .putString(KEY_TEXT_MODE, TEXT_MODE_AUTO.equals(mode) ? TEXT_MODE_AUTO : TEXT_MODE_LIGHT)
+                .putString(AppPrefs.KEY_TEXT_MODE, AppPrefs.TEXT_MODE_AUTO.equals(mode) ? AppPrefs.TEXT_MODE_AUTO : AppPrefs.TEXT_MODE_LIGHT)
                 .apply();
     }
 
     private void saveOverlayUiStyle(String style) {
-        getSharedPreferences(PREFS, MODE_PRIVATE)
+        getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE)
                 .edit()
-                .putString(KEY_OVERLAY_UI_STYLE,
-                        OVERLAY_UI_DYNAMIC_ISLAND_COMPACT.equals(style) ? OVERLAY_UI_DYNAMIC_ISLAND_COMPACT
-                                : OVERLAY_UI_DYNAMIC_ISLAND.equals(style) ? OVERLAY_UI_DYNAMIC_ISLAND
-                                : OVERLAY_UI_NEW.equals(style) ? OVERLAY_UI_NEW : OVERLAY_UI_OLD)
+                .putString(AppPrefs.KEY_OVERLAY_UI_STYLE, OverlayUiStyles.normalize(style))
                 .apply();
     }
 
     private int previewPrimaryTextColor() {
-        return usesDarkTextPalette(this) ? 0xFF0F172A : 0xFFE8EAED;
+        return AppPrefs.usesDarkTextPalette(this) ? 0xFF0F172A : 0xFFE8EAED;
     }
 
     private int previewAlertTextColor() {
-        return usesDarkTextPalette(this) ? 0xFF7C2D12 : 0xFFFFF7ED;
+        return AppPrefs.usesDarkTextPalette(this) ? 0xFF7C2D12 : 0xFFFFF7ED;
     }
 
     private int previewDetailTextColor() {
-        return usesDarkTextPalette(this) ? 0xFF1E3A8A : 0xFFC7D2FE;
+        return AppPrefs.usesDarkTextPalette(this) ? 0xFF1E3A8A : 0xFFC7D2FE;
     }
 
     private void updateBackgroundOpacityText(int percent) {
         if (overlayBackgroundOpacityText != null) {
-            overlayBackgroundOpacityText.setText("\u4e3b\u80cc\u666f\u900f\u660e\u5ea6 " + clampBackgroundOpacityPercent(percent) + "%");
+            overlayBackgroundOpacityText.setText("\u4e3b\u80cc\u666f\u900f\u660e\u5ea6 " + AppPrefs.clampBackgroundOpacityPercent(percent) + "%");
         }
     }
 
     private void saveBackgroundOpacityPercent(int percent) {
-        getSharedPreferences(PREFS, MODE_PRIVATE)
+        getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE)
                 .edit()
-                .putInt(KEY_BACKGROUND_OPACITY_PERCENT, clampBackgroundOpacityPercent(percent))
+                .putInt(AppPrefs.KEY_BACKGROUND_OPACITY_PERCENT, AppPrefs.clampBackgroundOpacityPercent(percent))
                 .apply();
     }
 
     private void migrateOverlayStylePrefs() {
-        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        if (prefs.contains(KEY_BACKGROUND_OPACITY_PERCENT)) {
+        SharedPreferences prefs = getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE);
+        if (prefs.contains(AppPrefs.KEY_BACKGROUND_OPACITY_PERCENT)) {
             return;
         }
-        int opacity = prefs.getBoolean(KEY_TRANSPARENT_BACKGROUND, false)
-                ? MIN_BACKGROUND_OPACITY_PERCENT
-                : DEFAULT_BACKGROUND_OPACITY_PERCENT;
-        prefs.edit().putInt(KEY_BACKGROUND_OPACITY_PERCENT, opacity).apply();
+        int opacity = prefs.getBoolean(AppPrefs.KEY_TRANSPARENT_BACKGROUND, false)
+                ? AppPrefs.MIN_BACKGROUND_OPACITY_PERCENT
+                : AppPrefs.DEFAULT_BACKGROUND_OPACITY_PERCENT;
+        prefs.edit().putInt(AppPrefs.KEY_BACKGROUND_OPACITY_PERCENT, opacity).apply();
     }
 
     private void setPreviewVisibility(android.view.View view, boolean visible) {
@@ -2118,80 +1839,80 @@ public class MainActivity extends Activity {
 
     private void notifyOverlayScaleChanged() {
         startOverlayService();
-        Intent intent = new Intent(ACTION_OVERLAY_SCALE_CHANGED);
+        Intent intent = new Intent(AppPrefs.ACTION_OVERLAY_SCALE_CHANGED);
         intent.setPackage(getPackageName());
         sendBroadcast(intent);
     }
 
     private void saveMainOverlayEnabled(boolean enabled) {
-        getSharedPreferences(PREFS, MODE_PRIVATE)
+        getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE)
                 .edit()
-                .putBoolean(KEY_MAIN_OVERLAY_ENABLED, enabled)
+                .putBoolean(AppPrefs.KEY_MAIN_OVERLAY_ENABLED, enabled)
                 .apply();
     }
 
     private void saveClusterMirrorEnabled(boolean enabled) {
-        getSharedPreferences(PREFS, MODE_PRIVATE)
+        getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE)
                 .edit()
-                .putBoolean(KEY_CLUSTER_MIRROR_ENABLED, enabled)
+                .putBoolean(AppPrefs.KEY_CLUSTER_MIRROR_ENABLED, enabled)
                 .apply();
     }
 
     private void notifyMainOverlayChanged() {
-        Intent intent = new Intent(ACTION_MAIN_OVERLAY_CHANGED);
+        Intent intent = new Intent(AppPrefs.ACTION_MAIN_OVERLAY_CHANGED);
         intent.setPackage(getPackageName());
         sendBroadcast(intent);
     }
 
     private void notifyClusterMirrorChanged() {
-        Intent intent = new Intent(ACTION_CLUSTER_MIRROR_CHANGED);
+        Intent intent = new Intent(AppPrefs.ACTION_CLUSTER_MIRROR_CHANGED);
         intent.setPackage(getPackageName());
         sendBroadcast(intent);
     }
 
     private void notifyClusterPositionChanged() {
-        Intent intent = new Intent(ACTION_CLUSTER_POSITION_CHANGED);
+        Intent intent = new Intent(AppPrefs.ACTION_CLUSTER_POSITION_CHANGED);
         intent.setPackage(getPackageName());
         sendBroadcast(intent);
     }
 
     private void notifyOverlayContentChanged() {
-        Intent intent = new Intent(ACTION_OVERLAY_CONTENT_CHANGED);
+        Intent intent = new Intent(AppPrefs.ACTION_OVERLAY_CONTENT_CHANGED);
         intent.setPackage(getPackageName());
         sendBroadcast(intent);
     }
 
     private void notifyOverlayStyleChanged() {
-        Intent intent = new Intent(ACTION_OVERLAY_STYLE_CHANGED);
+        Intent intent = new Intent(AppPrefs.ACTION_OVERLAY_STYLE_CHANGED);
         intent.setPackage(getPackageName());
         sendBroadcast(intent);
     }
 
     private void notifyDisplayPolicyChanged() {
-        Intent intent = new Intent(ACTION_DISPLAY_POLICY_CHANGED);
+        Intent intent = new Intent(AppPrefs.ACTION_DISPLAY_POLICY_CHANGED);
         intent.setPackage(getPackageName());
         sendBroadcast(intent);
     }
 
     private void stopServiceIfNoVisuals() {
-        if (!isMainOverlayEnabled(this)
-                && !isClusterMirrorEnabled(this)
-                && !isAutoStartEnabled(this)
-                && !isShowMainWhenTargetForegroundEnabled(this)) {
+        if (!AppPrefs.isMainOverlayEnabled(this)
+                && !AppPrefs.isClusterMirrorEnabled(this)
+                && !AppPrefs.isAutoStartEnabled(this)
+                && !AppPrefs.isShowMainWhenTargetForegroundEnabled(this)) {
             stopService(new Intent(this, OverlayService.class));
         }
     }
 
     private void saveClusterScalePercent(int percent) {
-        getSharedPreferences(PREFS, MODE_PRIVATE)
+        getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE)
                 .edit()
-                .putInt(KEY_CLUSTER_SCALE_PERCENT, clampOverlayScalePercent(percent))
+                .putInt(AppPrefs.KEY_CLUSTER_SCALE_PERCENT, AppPrefs.clampOverlayScalePercent(percent))
                 .apply();
     }
 
     private void updateClusterScaleText(int percent) {
         if (clusterScaleText != null) {
-            clusterScaleText.setText("\u526f\u5c4f\u5927\u5c0f " + clampOverlayScalePercent(percent) + "%");
+            clusterScaleText.setText("\u526f\u5c4f\u5927\u5c0f " + AppPrefs.clampOverlayScalePercent(percent) + "%");
         }
     }
 
@@ -2199,7 +1920,7 @@ public class MainActivity extends Activity {
         if (clusterDisplayText == null) {
             return;
         }
-        int selectedId = getClusterDisplayId(this);
+        int selectedId = AppPrefs.getClusterDisplayId(this);
         if (selectedId < 0) {
             clusterDisplayText.setText("\u6295\u5c4f\u5c4f\u5e55 \u00b7 \u81ea\u52a8\u9009\u62e9");
             return;
@@ -2220,9 +1941,9 @@ public class MainActivity extends Activity {
     }
 
     private void saveClusterDisplayId(int displayId) {
-        getSharedPreferences(PREFS, MODE_PRIVATE)
+        getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE)
                 .edit()
-                .putInt(KEY_CLUSTER_DISPLAY_ID, displayId)
+                .putInt(AppPrefs.KEY_CLUSTER_DISPLAY_ID, displayId)
                 .apply();
     }
 
@@ -2263,12 +1984,12 @@ public class MainActivity extends Activity {
     }
 
     private void moveClusterBy(int dx, int dy) {
-        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        int x = Math.max(0, prefs.getInt(KEY_CLUSTER_X, dp(24)) + dx);
-        int y = Math.max(0, prefs.getInt(KEY_CLUSTER_Y, dp(120)) + dy);
+        SharedPreferences prefs = getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE);
+        int x = Math.max(0, prefs.getInt(AppPrefs.KEY_CLUSTER_X, dp(24)) + dx);
+        int y = Math.max(0, prefs.getInt(AppPrefs.KEY_CLUSTER_Y, dp(120)) + dy);
         boolean saved = prefs.edit()
-                .putInt(KEY_CLUSTER_X, x)
-                .putInt(KEY_CLUSTER_Y, y)
+                .putInt(AppPrefs.KEY_CLUSTER_X, x)
+                .putInt(AppPrefs.KEY_CLUSTER_Y, y)
                 .commit();
         startOverlayService();
         if (saved) {
@@ -2276,204 +1997,6 @@ public class MainActivity extends Activity {
         } else {
             notifyClusterMirrorChanged();
         }
-    }
-
-    static int getOverlayScalePercent(android.content.Context context) {
-        SharedPreferences prefs = context.getSharedPreferences(PREFS, MODE_PRIVATE);
-        return clampOverlayScalePercent(prefs.getInt(KEY_OVERLAY_SCALE_PERCENT, DEFAULT_OVERLAY_SCALE_PERCENT));
-    }
-
-    static float getOverlayScale(android.content.Context context) {
-        return getOverlayScalePercent(context) / 100f;
-    }
-
-    static boolean isMainOverlayEnabled(android.content.Context context) {
-        return context.getSharedPreferences(PREFS, MODE_PRIVATE)
-                .getBoolean(KEY_MAIN_OVERLAY_ENABLED, false);
-    }
-
-    static boolean isClusterMirrorEnabled(android.content.Context context) {
-        return context.getSharedPreferences(PREFS, MODE_PRIVATE)
-                .getBoolean(KEY_CLUSTER_MIRROR_ENABLED, false);
-    }
-
-    static boolean isAutoStartEnabled(android.content.Context context) {
-        return isBehaviorEnabled(context, KEY_AUTO_START_ENABLED);
-    }
-
-    static boolean isStartServiceOnAppOpenEnabled(android.content.Context context) {
-        return isBehaviorEnabled(context, KEY_START_SERVICE_ON_APP_OPEN);
-    }
-
-    static boolean isHideMainWhenTargetForegroundEnabled(android.content.Context context) {
-        return isBehaviorEnabled(context, KEY_HIDE_MAIN_WHEN_TARGET_FOREGROUND);
-    }
-
-    static boolean isShowMainWhenTargetForegroundEnabled(android.content.Context context) {
-        return isBehaviorEnabled(context, KEY_SHOW_MAIN_WHEN_TARGET_FOREGROUND);
-    }
-
-    static boolean isHideClusterWhenInactiveEnabled(android.content.Context context) {
-        return isBehaviorEnabled(context, KEY_HIDE_CLUSTER_WHEN_INACTIVE);
-    }
-
-    static boolean hasUsageStatsAccess(android.content.Context context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            return true;
-        }
-        try {
-            AppOpsManager appOps = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
-            if (appOps == null) {
-                return false;
-            }
-            int mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,
-                    Process.myUid(), context.getPackageName());
-            return mode == AppOpsManager.MODE_ALLOWED;
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
-
-    static int getClusterScalePercent(android.content.Context context) {
-        SharedPreferences prefs = context.getSharedPreferences(PREFS, MODE_PRIVATE);
-        return clampOverlayScalePercent(prefs.getInt(KEY_CLUSTER_SCALE_PERCENT, DEFAULT_OVERLAY_SCALE_PERCENT));
-    }
-
-    static float getClusterScale(android.content.Context context) {
-        return getClusterScalePercent(context) / 100f;
-    }
-
-    static int getClusterDisplayId(android.content.Context context) {
-        return context.getSharedPreferences(PREFS, MODE_PRIVATE)
-                .getInt(KEY_CLUSTER_DISPLAY_ID, -1);
-    }
-
-    static int getClusterX(android.content.Context context, int defaultValue) {
-        return Math.max(0, context.getSharedPreferences(PREFS, MODE_PRIVATE)
-                .getInt(KEY_CLUSTER_X, defaultValue));
-    }
-
-    static int getClusterY(android.content.Context context, int defaultValue) {
-        return Math.max(0, context.getSharedPreferences(PREFS, MODE_PRIVATE)
-                .getInt(KEY_CLUSTER_Y, defaultValue));
-    }
-
-    static boolean isModeVisible(android.content.Context context) {
-        return isOverlayContentEnabled(context, KEY_SHOW_MODE);
-    }
-
-    static boolean isTurnVisible(android.content.Context context) {
-        return isOverlayContentEnabled(context, KEY_SHOW_TURN);
-    }
-
-    static boolean isLaneVisible(android.content.Context context) {
-        return isOverlayContentEnabled(context, KEY_SHOW_LANE);
-    }
-
-    static boolean isLightVisible(android.content.Context context) {
-        return isOverlayContentEnabled(context, KEY_SHOW_LIGHT);
-    }
-
-    static boolean isEtaVisible(android.content.Context context) {
-        return isOverlayContentEnabled(context, KEY_SHOW_ETA);
-    }
-
-    static boolean isAlertVisible(android.content.Context context) {
-        return isOverlayContentEnabled(context, KEY_SHOW_ALERT);
-    }
-
-    static boolean isDetailVisible(android.content.Context context) {
-        return isOverlayContentEnabled(context, KEY_SHOW_DETAIL);
-    }
-
-    static boolean isTransparentBackground(android.content.Context context) {
-        return getBackgroundOpacityPercent(context) <= MIN_BACKGROUND_OPACITY_PERCENT;
-    }
-
-    static boolean isAutoTextMode(android.content.Context context) {
-        return TEXT_MODE_AUTO.equals(getOverlayTextMode(context));
-    }
-
-    static boolean isNewOverlayUiEnabled(android.content.Context context) {
-        String style = getOverlayUiStyle(context);
-        return OVERLAY_UI_NEW.equals(style) || OVERLAY_UI_DYNAMIC_ISLAND.equals(style)
-                || OVERLAY_UI_DYNAMIC_ISLAND_COMPACT.equals(style);
-    }
-
-    static boolean isDynamicIslandUiEnabled(android.content.Context context) {
-        return OVERLAY_UI_DYNAMIC_ISLAND.equals(getOverlayUiStyle(context));
-    }
-
-    static boolean isDynamicIslandCompactUiEnabled(android.content.Context context) {
-        return OVERLAY_UI_DYNAMIC_ISLAND_COMPACT.equals(getOverlayUiStyle(context));
-    }
-
-    static boolean usesDarkTextPalette(android.content.Context context) {
-        return getBackgroundOpacityPercent(context) <= 55 && isAutoTextMode(context);
-    }
-
-    static int getBackgroundOpacityPercent(android.content.Context context) {
-        SharedPreferences prefs = context.getSharedPreferences(PREFS, MODE_PRIVATE);
-        if (prefs.contains(KEY_BACKGROUND_OPACITY_PERCENT)) {
-            return clampBackgroundOpacityPercent(
-                    prefs.getInt(KEY_BACKGROUND_OPACITY_PERCENT, DEFAULT_BACKGROUND_OPACITY_PERCENT));
-        }
-        return prefs.getBoolean(KEY_TRANSPARENT_BACKGROUND, false)
-                ? MIN_BACKGROUND_OPACITY_PERCENT
-                : DEFAULT_BACKGROUND_OPACITY_PERCENT;
-    }
-
-    static String getOverlayTextMode(android.content.Context context) {
-        String mode = context.getSharedPreferences(PREFS, MODE_PRIVATE)
-                .getString(KEY_TEXT_MODE, TEXT_MODE_AUTO);
-        return TEXT_MODE_LIGHT.equals(mode) ? TEXT_MODE_LIGHT : TEXT_MODE_AUTO;
-    }
-
-    static String getOverlayUiStyle(android.content.Context context) {
-        String style = context.getSharedPreferences(PREFS, MODE_PRIVATE)
-                .getString(KEY_OVERLAY_UI_STYLE, OVERLAY_UI_OLD);
-        if (OVERLAY_UI_DYNAMIC_ISLAND_COMPACT.equals(style)) {
-            return OVERLAY_UI_DYNAMIC_ISLAND_COMPACT;
-        }
-        if (OVERLAY_UI_DYNAMIC_ISLAND.equals(style)) {
-            return OVERLAY_UI_DYNAMIC_ISLAND;
-        }
-        if (OVERLAY_UI_NEW.equals(style)) {
-            return OVERLAY_UI_NEW;
-        }
-        return OVERLAY_UI_OLD;
-    }
-
-    static boolean isOverlayContentEnabled(android.content.Context context, String key) {
-        return context.getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(key, true);
-    }
-
-    private static boolean isBehaviorEnabled(android.content.Context context, String key) {
-        boolean defaultValue = KEY_AUTO_START_ENABLED.equals(key);
-        return context.getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(key, defaultValue);
-    }
-
-    private static int clampOverlayScalePercent(int percent) {
-        return Math.max(MIN_OVERLAY_SCALE_PERCENT, Math.min(MAX_OVERLAY_SCALE_PERCENT, percent));
-    }
-
-    private static int clampBackgroundOpacityPercent(int percent) {
-        return Math.max(MIN_BACKGROUND_OPACITY_PERCENT, Math.min(MAX_BACKGROUND_OPACITY_PERCENT, percent));
-    }
-
-    static int strokeOpacityForBackground(int opacityPercent) {
-        return opacityPercent <= 0 ? 0 : Math.max(8, Math.round(opacityPercent * 0.18f));
-    }
-
-    private static int withAlpha(int color, int alphaPercent) {
-        int alpha = Math.max(0, Math.min(255, Math.round(clampBackgroundOpacityPercent(alphaPercent) * 255f / 100f)));
-        return (alpha << 24) | (color & 0x00FFFFFF);
-    }
-
-    static String getTargetPackage(android.content.Context context) {
-        SharedPreferences prefs = context.getSharedPreferences(PREFS, MODE_PRIVATE);
-        String value = prefs.getString(KEY_TARGET_PACKAGE, DEFAULT_TARGET_PACKAGE);
-        return value == null || value.length() == 0 ? DEFAULT_TARGET_PACKAGE : value;
     }
 
     private int dp(int value) {
