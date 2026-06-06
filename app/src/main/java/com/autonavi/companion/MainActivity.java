@@ -44,11 +44,14 @@ import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
 public class MainActivity extends Activity {
     static final String EXTRA_OPEN_SETTINGS = "open_companion_settings";
+    private static final String KEY_LAST_DESKTOP_LAUNCH_AT = "last_desktop_launch_at";
+    private static final long DOUBLE_DESKTOP_LAUNCH_WINDOW_MS = 30_000L;
     static final String KEY_UPDATE_URL = "update_url";
     static final String KEY_UPDATE_CHANNEL = "update_channel";
     static final String UPDATE_CHANNEL_SERVER = "server";
@@ -101,6 +104,13 @@ public class MainActivity extends Activity {
         targetText.postDelayed(() -> {
             checkForUpdates(false);
         }, 2000L);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        redirectDesktopLaunchToTarget(intent);
     }
 
     private void autoStartServiceOnAppOpen() {
@@ -553,7 +563,7 @@ public class MainActivity extends Activity {
         box.addView(title, new LinearLayout.LayoutParams(-1, -2));
 
         TextView hint = new TextView(this);
-        hint.setText("除“桌面启动时直接进入目标应用”外，这些选项不会主动启动目标高德应用。启用桌面直达时，建议同时开启主屏悬浮窗，轻触悬浮窗可进入伴侣设置。开机或亮屏自动启动服务开启后，系统重启、应用更新或车机亮屏时会恢复伴侣服务。");
+        hint.setText("除“桌面启动时直接进入目标应用”外，这些选项不会主动启动目标高德应用。启用桌面直达后，首次点击桌面图标会打开目标应用；30秒内再次点击桌面图标可进入伴侣设置，轻触主屏悬浮窗也可进入。开机或亮屏自动启动服务开启后，系统重启、应用更新或车机亮屏时会恢复伴侣服务。");
         hint.setTextSize(12f);
         hint.setTextColor(0xFF64748B);
         LinearLayout.LayoutParams hintLp = new LinearLayout.LayoutParams(-1, -2);
@@ -959,63 +969,13 @@ public class MainActivity extends Activity {
     }
 
     private void chooseTargetApp() {
-        PackageManager pm = getPackageManager();
-        int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PackageManager.MATCH_ALL : 0;
-        HashSet<String> launcherPackages = new HashSet<>();
-        Intent main = new Intent(Intent.ACTION_MAIN);
-        main.addCategory(Intent.CATEGORY_LAUNCHER);
-        List<ResolveInfo> resolved = pm.queryIntentActivities(main, flags);
-        HashSet<String> seen = new HashSet<>();
         ArrayList<AppChoice> allChoices = new ArrayList<>();
-        for (ResolveInfo info : resolved) {
-            if (info.activityInfo == null || info.activityInfo.packageName == null) {
-                continue;
-            }
-            String pkg = info.activityInfo.packageName;
-            launcherPackages.add(pkg);
-            if (pkg.equals(getPackageName())) {
-                continue;
-            }
-            if (!seen.add(pkg)) {
-                continue;
-            }
-            ApplicationInfo appInfo = info.activityInfo.applicationInfo;
-            String label = String.valueOf(appInfo.loadLabel(pm));
-            allChoices.add(new AppChoice(label, pkg, isSystemApp(appInfo), true, isMapNamedApp(label), isAmapPackage(pkg)));
-        }
-        for (ApplicationInfo appInfo : pm.getInstalledApplications(flags)) {
-            String pkg = appInfo.packageName;
-            if (pkg == null || pkg.equals(getPackageName()) || !seen.add(pkg)) {
-                continue;
-            }
-            String label = String.valueOf(appInfo.loadLabel(pm));
-            allChoices.add(new AppChoice(label, pkg, isSystemApp(appInfo), launcherPackages.contains(pkg), isMapNamedApp(label), isAmapPackage(pkg)));
-        }
-        sortAppChoices(allChoices);
-        ArrayList<AppChoice> filteredChoices = new ArrayList<>();
-        for (AppChoice choice : allChoices) {
-            if (choice.mapNamed || choice.amapPackage) {
-                filteredChoices.add(choice);
-            }
-        }
-        boolean fallbackToAll = filteredChoices.isEmpty();
         ArrayList<AppChoice> choices = new ArrayList<>();
-        if (fallbackToAll) {
-            choices.addAll(allChoices);
-        } else {
-            choices.addAll(filteredChoices);
-        }
-        sortAppChoices(choices);
-        if (choices.isEmpty()) {
-            choices.add(new AppChoice(AppPrefs.DEFAULT_TARGET_PACKAGE, AppPrefs.DEFAULT_TARGET_PACKAGE, false, false, false, true));
-        }
         LinearLayout dialogContent = new LinearLayout(this);
         dialogContent.setOrientation(LinearLayout.VERTICAL);
         dialogContent.setPadding(dp(8), 0, dp(8), 0);
         TextView hint = new TextView(this);
-        hint.setText(fallbackToAll
-                ? "\u672a\u627e\u5230 com.autonavi.* \u6216\u540d\u79f0\u5305\u542b\u201c\u5730\u56fe\u201d\u7684\u5e94\u7528\uff0c\u5df2\u663e\u793a\u6240\u6709\u53ef\u89c1\u5e94\u7528\u5305\u3002"
-                : "\u4f18\u5148\u663e\u793a com.autonavi.* \u5305\u540d\u6216\u540d\u79f0\u5305\u542b\u201c\u5730\u56fe\u201d\u7684\u5e94\u7528\u3002");
+        hint.setText("\u6b63\u5728\u52a0\u8f7d\u5df2\u5b89\u88c5\u5e94\u7528\u2026");
         hint.setTextSize(13);
         hint.setTextColor(0xFF4B5563);
         hint.setPadding(dp(16), dp(6), dp(16), dp(10));
@@ -1031,6 +991,9 @@ public class MainActivity extends Activity {
                 .setView(dialogContent)
                 .create();
         listView.setOnItemClickListener((parent, view, which, id) -> {
+            if (which < 0 || which >= choices.size()) {
+                return;
+            }
             saveTargetPackage(choices.get(which).packageName);
             updateTargetText();
             startOverlayService();
@@ -1046,6 +1009,73 @@ public class MainActivity extends Activity {
             hint.setText("\u5df2\u663e\u793a\u6240\u6709\u53ef\u89c1\u5e94\u7528\u5305\u3002");
             adapter.notifyDataSetChanged();
         });
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(false);
+        new Thread(() -> {
+            ArrayList<AppChoice> loadedChoices = loadTargetAppChoices();
+            ArrayList<AppChoice> filteredChoices = new ArrayList<>();
+            for (AppChoice choice : loadedChoices) {
+                if (choice.mapNamed || choice.amapPackage) {
+                    filteredChoices.add(choice);
+                }
+            }
+            boolean fallbackToAll = filteredChoices.isEmpty();
+            ArrayList<AppChoice> visibleChoices = fallbackToAll ? loadedChoices : filteredChoices;
+            if (visibleChoices.isEmpty()) {
+                visibleChoices.add(new AppChoice(AppPrefs.DEFAULT_TARGET_PACKAGE,
+                        AppPrefs.DEFAULT_TARGET_PACKAGE, false, false, false, true));
+            }
+            final ArrayList<AppChoice> result = visibleChoices;
+            runOnUiThread(() -> {
+                if (isFinishing() || !dialog.isShowing()) {
+                    return;
+                }
+                allChoices.clear();
+                allChoices.addAll(loadedChoices);
+                choices.clear();
+                choices.addAll(result);
+                hint.setText(fallbackToAll
+                        ? "\u672a\u627e\u5230 com.autonavi.* \u6216\u540d\u79f0\u5305\u542b\u201c\u5730\u56fe\u201d\u7684\u5e94\u7528\uff0c\u5df2\u663e\u793a\u6240\u6709\u53ef\u89c1\u5e94\u7528\u5305\u3002"
+                        : "\u4f18\u5148\u663e\u793a com.autonavi.* \u5305\u540d\u6216\u540d\u79f0\u5305\u542b\u201c\u5730\u56fe\u201d\u7684\u5e94\u7528\u3002");
+                adapter.notifyDataSetChanged();
+                dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(true);
+            });
+        }, "target-app-loader").start();
+    }
+
+    private ArrayList<AppChoice> loadTargetAppChoices() {
+        PackageManager pm = getPackageManager();
+        int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PackageManager.MATCH_ALL : 0;
+        HashSet<String> launcherPackages = new HashSet<>();
+        Intent main = new Intent(Intent.ACTION_MAIN);
+        main.addCategory(Intent.CATEGORY_LAUNCHER);
+        List<ResolveInfo> resolved = pm.queryIntentActivities(main, flags);
+        HashSet<String> seen = new HashSet<>();
+        ArrayList<AppChoice> choices = new ArrayList<>();
+        for (ResolveInfo info : resolved) {
+            if (info.activityInfo == null || info.activityInfo.packageName == null) {
+                continue;
+            }
+            String pkg = info.activityInfo.packageName;
+            launcherPackages.add(pkg);
+            if (pkg.equals(getPackageName()) || !seen.add(pkg)) {
+                continue;
+            }
+            ApplicationInfo appInfo = info.activityInfo.applicationInfo;
+            String label = String.valueOf(appInfo.loadLabel(pm));
+            choices.add(new AppChoice(label, pkg, isSystemApp(appInfo), true,
+                    isMapNamedApp(label), isAmapPackage(pkg)));
+        }
+        for (ApplicationInfo appInfo : pm.getInstalledApplications(flags)) {
+            String pkg = appInfo.packageName;
+            if (pkg == null || pkg.equals(getPackageName()) || !seen.add(pkg)) {
+                continue;
+            }
+            String label = String.valueOf(appInfo.loadLabel(pm));
+            choices.add(new AppChoice(label, pkg, isSystemApp(appInfo),
+                    launcherPackages.contains(pkg), isMapNamedApp(label), isAmapPackage(pkg)));
+        }
+        sortAppChoices(choices);
+        return choices;
     }
 
     private boolean isSystemApp(ApplicationInfo appInfo) {
@@ -1172,17 +1202,34 @@ public class MainActivity extends Activity {
     }
 
     private boolean redirectDesktopLaunchToTarget(Intent sourceIntent) {
-        if (!AppPrefs.isLaunchTargetFromDesktopEnabled(this)
-                || sourceIntent == null
-                || sourceIntent.getBooleanExtra(EXTRA_OPEN_SETTINGS, false)
+        if (sourceIntent != null && sourceIntent.getBooleanExtra(EXTRA_OPEN_SETTINGS, false)) {
+            clearPendingDesktopLaunch();
+            return false;
+        }
+        if (!AppPrefs.isLaunchTargetFromDesktopEnabled(this)) {
+            clearPendingDesktopLaunch();
+            return false;
+        }
+        if (sourceIntent == null
                 || !Intent.ACTION_MAIN.equals(sourceIntent.getAction())
                 || !sourceIntent.hasCategory(Intent.CATEGORY_LAUNCHER)) {
             return false;
         }
         Intent launch = getPackageManager().getLaunchIntentForPackage(AppPrefs.getTargetPackage(this));
         if (launch == null) {
+            clearPendingDesktopLaunch();
             return false;
         }
+        long now = System.currentTimeMillis();
+        SharedPreferences prefs = getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE);
+        long lastLaunchAt = prefs.getLong(KEY_LAST_DESKTOP_LAUNCH_AT, 0L);
+        if (lastLaunchAt > 0L
+                && now >= lastLaunchAt
+                && now - lastLaunchAt <= DOUBLE_DESKTOP_LAUNCH_WINDOW_MS) {
+            clearPendingDesktopLaunch();
+            return false;
+        }
+        prefs.edit().putLong(KEY_LAST_DESKTOP_LAUNCH_AT, now).commit();
         if (AppPrefs.isMainOverlayEnabled(this)
                 || AppPrefs.isClusterMirrorEnabled(this)
                 || AppPrefs.isShowMainWhenTargetForegroundEnabled(this)) {
@@ -1191,6 +1238,13 @@ public class MainActivity extends Activity {
         startActivity(launch);
         finish();
         return true;
+    }
+
+    private void clearPendingDesktopLaunch() {
+        getSharedPreferences(AppPrefs.PREFS, MODE_PRIVATE)
+                .edit()
+                .remove(KEY_LAST_DESKTOP_LAUNCH_AT)
+                .commit();
     }
 
     private void chooseClusterDisplay() {
@@ -2035,6 +2089,7 @@ public class MainActivity extends Activity {
 
     private final class TargetAppAdapter extends BaseAdapter {
         private final ArrayList<AppChoice> choices;
+        private final HashMap<String, Drawable> iconCache = new HashMap<>();
 
         TargetAppAdapter(ArrayList<AppChoice> choices) {
             this.choices = choices;
@@ -2113,8 +2168,14 @@ public class MainActivity extends Activity {
         }
 
         private Drawable loadAppIcon(String packageName) {
+            Drawable cached = iconCache.get(packageName);
+            if (cached != null) {
+                return cached;
+            }
             try {
-                return getPackageManager().getApplicationIcon(packageName);
+                Drawable icon = getPackageManager().getApplicationIcon(packageName);
+                iconCache.put(packageName, icon);
+                return icon;
             } catch (Exception ignored) {
                 return getResources().getDrawable(android.R.drawable.sym_def_app_icon);
             }
