@@ -2756,6 +2756,7 @@ public class OverlayService extends Service {
     private void openMainActivity() {
         try {
             Intent intent = new Intent(this, MainActivity.class);
+            intent.putExtra(MainActivity.EXTRA_OPEN_SETTINGS, true);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             startActivity(intent);
         } catch (Throwable t) {

@@ -48,6 +48,7 @@ import java.util.HashSet;
 import java.util.List;
 
 public class MainActivity extends Activity {
+    static final String EXTRA_OPEN_SETTINGS = "open_companion_settings";
     private static final String TARGET_PACKAGE_PREFIX = "com.autonavi.";
     private static final int REQUEST_READ_LOGS_PERMISSION = 7001;
     private static final int REQUEST_STORAGE_PERMISSIONS = 7002;
@@ -73,6 +74,9 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         migrateOverlayStylePrefs();
+        if (redirectDesktopLaunchToTarget(getIntent())) {
+            return;
+        }
         View content = buildContent();
         FontManager.applyToViewTree(this, content);
         setContentView(content);
@@ -445,7 +449,7 @@ public class MainActivity extends Activity {
         box.addView(title, new LinearLayout.LayoutParams(-1, -2));
 
         TextView hint = new TextView(this);
-        hint.setText("这些选项只控制本程序窗口，不会主动唤醒或启动目标高德应用。开机或亮屏自动启动服务开启后，系统重启、应用更新或车机亮屏时会自动启动伴侣服务，相当于打开软件后点击“启动伴侣服务”。高德广播自动显示会在后台持续监听广播。");
+        hint.setText("除“桌面启动时直接进入目标应用”外，这些选项不会主动启动目标高德应用。启用桌面直达时，建议同时开启主屏悬浮窗，轻触悬浮窗可进入伴侣设置。开机或亮屏自动启动服务开启后，系统重启、应用更新或车机亮屏时会恢复伴侣服务。");
         hint.setTextSize(12f);
         hint.setTextColor(0xFF64748B);
         LinearLayout.LayoutParams hintLp = new LinearLayout.LayoutParams(-1, -2);
@@ -463,6 +467,9 @@ public class MainActivity extends Activity {
                     behaviorToggle("开机或亮屏自动启动服务", AppPrefs.KEY_AUTO_START_ENABLED),
                     behaviorToggle("进入软件后自动启动服务", AppPrefs.KEY_START_SERVICE_ON_APP_OPEN));
             addTogglePair(grid,
+                    behaviorToggle("桌面启动时直接进入目标应用", AppPrefs.KEY_LAUNCH_TARGET_FROM_DESKTOP),
+                    null);
+            addTogglePair(grid,
                     behaviorToggle("高德广播自动显示悬浮窗", AppPrefs.KEY_SHOW_MAIN_WHEN_TARGET_FOREGROUND),
                     null);
             addTogglePair(grid,
@@ -474,6 +481,7 @@ public class MainActivity extends Activity {
         } else {
             grid.addView(behaviorToggle("开机或亮屏自动启动服务", AppPrefs.KEY_AUTO_START_ENABLED));
             grid.addView(behaviorToggle("进入软件后自动启动服务", AppPrefs.KEY_START_SERVICE_ON_APP_OPEN));
+            grid.addView(behaviorToggle("桌面启动时直接进入目标应用", AppPrefs.KEY_LAUNCH_TARGET_FROM_DESKTOP));
             grid.addView(behaviorToggle("高德广播自动显示悬浮窗", AppPrefs.KEY_SHOW_MAIN_WHEN_TARGET_FOREGROUND));
             grid.addView(behaviorToggle("高德前台隐藏中控悬浮窗", AppPrefs.KEY_HIDE_MAIN_WHEN_TARGET_FOREGROUND));
             grid.addView(behaviorToggle("导航/巡航退出隐藏仪表", AppPrefs.KEY_HIDE_CLUSTER_WHEN_INACTIVE));
@@ -1034,6 +1042,28 @@ public class MainActivity extends Activity {
         if (launch != null) {
             startActivity(launch);
         }
+    }
+
+    private boolean redirectDesktopLaunchToTarget(Intent sourceIntent) {
+        if (!AppPrefs.isLaunchTargetFromDesktopEnabled(this)
+                || sourceIntent == null
+                || sourceIntent.getBooleanExtra(EXTRA_OPEN_SETTINGS, false)
+                || !Intent.ACTION_MAIN.equals(sourceIntent.getAction())
+                || !sourceIntent.hasCategory(Intent.CATEGORY_LAUNCHER)) {
+            return false;
+        }
+        Intent launch = getPackageManager().getLaunchIntentForPackage(AppPrefs.getTargetPackage(this));
+        if (launch == null) {
+            return false;
+        }
+        if (AppPrefs.isMainOverlayEnabled(this)
+                || AppPrefs.isClusterMirrorEnabled(this)
+                || AppPrefs.isShowMainWhenTargetForegroundEnabled(this)) {
+            startOverlayService(this);
+        }
+        startActivity(launch);
+        finish();
+        return true;
     }
 
     private void chooseClusterDisplay() {
