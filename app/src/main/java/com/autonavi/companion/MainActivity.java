@@ -713,7 +713,6 @@ public class MainActivity extends Activity {
         SeekBar seekBar = scaleSeekBar();
         seekBar.setPadding(dp(8), dp(2), dp(8), dp(8));
         seekBar.setMinimumHeight(dp(40));
-        seekBar.setMinHeight(dp(40));
         seekBar.setMax(AppPrefs.MAX_BACKGROUND_OPACITY_PERCENT - AppPrefs.MIN_BACKGROUND_OPACITY_PERCENT);
         seekBar.setProgress(AppPrefs.getBackgroundOpacityPercent(this) - AppPrefs.MIN_BACKGROUND_OPACITY_PERCENT);
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -880,7 +879,6 @@ public class MainActivity extends Activity {
         SeekBar seekBar = new SeekBar(this);
         seekBar.setPadding(dp(4), dp(2), dp(4), dp(8));
         seekBar.setMinimumHeight(dp(40));
-        seekBar.setMinHeight(dp(40));
         GradientDrawable progress = new GradientDrawable(
                 GradientDrawable.Orientation.LEFT_RIGHT,
                 new int[]{0xFF571F1F, 0xFF574D1F, 0xFF27571F, 0xFF1F5754, 0xFF1F3057, 0xFF4D1F57, 0xFF571F1F});
@@ -1127,7 +1125,6 @@ public class MainActivity extends Activity {
         b.setTextSize(15f);
         b.setTextColor(Color.WHITE);
         b.setGravity(Gravity.CENTER);
-        b.setMinHeight(0);
         b.setMinimumHeight(0);
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(color);
@@ -1147,7 +1144,7 @@ public class MainActivity extends Activity {
         tile.setSingleLine(true);
         tile.setTextSize(15f);
         tile.setTypeface(Typeface.DEFAULT_BOLD);
-        tile.setMinHeight(0);
+        tile.setMinimumHeight(0);
         tile.setIncludeFontPadding(false);
         tile.setPadding(dp(8), 0, dp(8), 0);
         styleOptionTile(tile, active, startColor, endColor);
@@ -1179,7 +1176,6 @@ public class MainActivity extends Activity {
         SeekBar seekBar = new SeekBar(this);
         seekBar.setPadding(dp(8), dp(2), dp(8), dp(8));
         seekBar.setMinimumHeight(dp(40));
-        seekBar.setMinHeight(dp(40));
 
         GradientDrawable track = new GradientDrawable();
         track.setColor(0xFFE2E8F0);
