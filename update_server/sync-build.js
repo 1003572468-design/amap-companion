@@ -6,12 +6,13 @@ const http = require("http");
 const https = require("https");
 const path = require("path");
 const {execFileSync} = require("child_process");
+const {compileAssetPattern} = require("./release-sync-config");
 
 const defaultGithubRepo = "zuo-qirun/amap-companion";
 const githubRepo = process.env.GITHUB_REPO || detectGithubRepo() || defaultGithubRepo;
 const githubToken = process.env.GITHUB_TOKEN || "";
 const releaseTag = process.env.RELEASE_TAG || "latest";
-const assetPattern = new RegExp(process.env.ASSET_PATTERN || "\\.apk$");
+const assetPattern = compileAssetPattern(process.env.ASSET_PATTERN);
 const manifestAssetName = process.env.MANIFEST_ASSET || "release-update.json";
 const changelogAssetName = process.env.CHANGELOG_ASSET || "CHANGELOG.md";
 const publicDir = path.join(__dirname, "public");
