@@ -85,8 +85,8 @@ public final class AppPrefs {
     // ── Scale / opacity bounds ───────────────────────────────────────────
     public static final int MIN_BACKGROUND_OPACITY_PERCENT      = 0;
     public static final int MAX_BACKGROUND_OPACITY_PERCENT      = 100;
-    public static final int DEFAULT_BACKGROUND_OPACITY_PERCENT  = 90;
-    public static final int DEFAULT_BACKGROUND_COLOR            = 0xFF111827;
+    public static final int DEFAULT_BACKGROUND_OPACITY_PERCENT  = 100;
+    public static final int DEFAULT_BACKGROUND_COLOR            = 0xFF000000;
     public static final int DEFAULT_TEXT_COLOR                  = 0xFFE8EAED;
     public static final int[] BACKGROUND_COLOR_PRESETS = {
             0xFF111827,
@@ -100,7 +100,7 @@ public final class AppPrefs {
     };
     public static final int MIN_OVERLAY_SCALE_PERCENT           = 30;
     public static final int MAX_OVERLAY_SCALE_PERCENT           = 300;
-    public static final int DEFAULT_OVERLAY_SCALE_PERCENT       = 200;
+    public static final int DEFAULT_OVERLAY_SCALE_PERCENT       = 96;
 
     // ═══════════════════════════════════════════════════════════════════════
     //  Static preference accessors
