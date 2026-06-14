@@ -52,10 +52,14 @@ public class LaneBarView extends View {
 
     public LaneBarView(Context context) {
         super(context);
-        setMinimumHeight(dp(58));
+        setMinimumHeight(dp(70));  // 增加最小高度，为箭头预留空间
         setVisibility(GONE);
+        // 关键：禁用裁剪，允许箭头超出边界显示
+        setClipChildren(false);
+        setClipToPadding(false);
     }
 
+    // ========== 原有方法保持不变 ==========
     public void setLaneData(int[] newLanes, boolean[] newRecommend) {
         if (newLanes == null || newLanes.length == 0) {
             setVisibility(GONE);
@@ -74,10 +78,6 @@ public class LaneBarView extends View {
                 hasComplexCode = true;
             }
         }
-        // If the protocol does not provide recommendation flags, treat it as cruise only
-        // when all lane ids are simple available lanes. Navigation messages may omit
-        // recommendation flags but still use 0-14 for unavailable lanes or 30-48 for
-        // complex lanes, so those must keep the dark/active rendering.
         cruiseLaneStyle = !hasRecommend && !hasUnavailableCode && !hasComplexCode;
         if (newRecommend != null && newRecommend.length > 0) {
             recommend = new boolean[count];
@@ -177,11 +177,14 @@ public class LaneBarView extends View {
             int cellWidth = dp(27);
             int padding = dp(customLaneSpacingDp);
             width = cellWidth * count + padding;
-            height = dp(customHeightDp >= 0 ? customHeightDp : (compactSpacing ? 50 : 58));
+            height = dp(customHeightDp >= 0 ? customHeightDp : (compactSpacing ? 56 : 66));
         } else {
             width = dp(compactSpacing ? 40 : 48) * count + dp(compactSpacing ? 8 : 12);
-            height = dp(compactSpacing ? 50 : 58);
+            height = dp(compactSpacing ? 56 : 66);
         }
+        // 增加最小宽度，确保车道完整显示
+        int minWidth = dp(compactSpacing ? 100 : 130);
+        width = Math.max(width, minWidth);
         setMeasuredDimension(resolveSize(width, widthMeasureSpec), resolveSize(height, heightMeasureSpec));
     }
 
@@ -288,9 +291,6 @@ public class LaneBarView extends View {
         paint.setPathEffect(null);
         paint.setStyle(Paint.Style.FILL);
     }
-
-
-
 
     private boolean drawAmapLaneBitmap(Canvas canvas, int laneCode, float left, float width, boolean laneRecommended) {
         if (laneCode < 0) {
@@ -503,72 +503,75 @@ public class LaneBarView extends View {
         return lane >= 30 && lane <= 48;
     }
 
-    private void drawDirection(Canvas canvas, int direction, float left, float width) {
-        drawDirection(canvas, direction, left, width, paint);
-    }
-
+    // ========== 修改 drawDirection 方法，扩大绘制范围 ==========
     private void drawDirection(Canvas canvas, int direction, float left, float width, Paint p) {
         float cx = left + width / 2f;
-        float bottom = getHeight() - dp(10);
-        float splitY = getHeight() - dp(27);
-        float top = dp(9);
-        float leftX = left + Math.max(dp(9), width * 0.20f);
-        float rightX = left + Math.min(width - dp(9), width * 0.80f);
+        // 扩大上下边界，防止箭头被裁剪
+        float bottom = getHeight() - dp(3);   // 原 dp(10)，减小下边距
+        float splitY = getHeight() - dp(18);  // 原 dp(27)，提高分叉点
+        float top = dp(3);                    // 原 dp(9)，减小上边距
+        float leftX = left + Math.max(dp(4), width * 0.20f);
+        float rightX = left + Math.min(width - dp(4), width * 0.80f);
 
         path.reset();
         path.moveTo(cx, bottom);
         if (direction == STRAIGHT) {
-            path.lineTo(cx, top + dp(8));
+            path.lineTo(cx, top + dp(6));
             canvas.drawPath(path, p);
-            drawArrowHead(canvas, cx, top + dp(8), 0f, -1f, p);
+            drawArrowHead(canvas, cx, top + dp(6), 0f, -1f, p);
         } else if (direction == LEFT) {
             path.lineTo(cx, splitY);
-            path.cubicTo(cx, splitY - dp(11), leftX + dp(9), top + dp(13), leftX, top + dp(11));
+            path.cubicTo(cx, splitY - dp(11), leftX + dp(9), top + dp(10), leftX, top + dp(8));
             canvas.drawPath(path, p);
-            drawArrowHead(canvas, leftX, top + dp(11), -1f, -0.10f, p);
+            drawArrowHead(canvas, leftX, top + dp(8), -1f, -0.10f, p);
         } else if (direction == RIGHT) {
             path.lineTo(cx, splitY);
-            path.cubicTo(cx, splitY - dp(11), rightX - dp(9), top + dp(13), rightX, top + dp(11));
+            path.cubicTo(cx, splitY - dp(11), rightX - dp(9), top + dp(10), rightX, top + dp(8));
             canvas.drawPath(path, p);
-            drawArrowHead(canvas, rightX, top + dp(11), 1f, -0.10f, p);
+            drawArrowHead(canvas, rightX, top + dp(8), 1f, -0.10f, p);
         } else if (direction == U_LEFT) {
             path.lineTo(cx, splitY);
-            path.cubicTo(cx, top + dp(6), leftX, top + dp(6), leftX, splitY + dp(9));
+            path.cubicTo(cx, top + dp(4), leftX, top + dp(4), leftX, splitY + dp(9));
             canvas.drawPath(path, p);
             drawArrowHead(canvas, leftX, splitY + dp(9), 0f, 1f, p);
         } else if (direction == U_RIGHT) {
             path.lineTo(cx, splitY);
-            path.cubicTo(cx, top + dp(6), rightX, top + dp(6), rightX, splitY + dp(9));
+            path.cubicTo(cx, top + dp(4), rightX, top + dp(4), rightX, splitY + dp(9));
             canvas.drawPath(path, p);
             drawArrowHead(canvas, rightX, splitY + dp(9), 0f, 1f, p);
         } else {
             p.setPathEffect(new DashPathEffect(new float[]{dp(4), dp(4)}, 0));
-            path.lineTo(cx, top + dp(8));
+            path.lineTo(cx, top + dp(6));
             canvas.drawPath(path, p);
             p.setPathEffect(null);
         }
     }
 
-    private void drawArrowHead(Canvas canvas, float x, float y, float dx, float dy) {
-        drawArrowHead(canvas, x, y, dx, dy, paint);
-    }
-
     private void drawArrowHead(Canvas canvas, float x, float y, float dx, float dy, Paint p) {
-        float size = dp(7);
+        float size = dp(9);  // 原 dp(7)，增大箭头
         Path arrow = path;
         arrow.reset();
         if (Math.abs(dx) > Math.abs(dy)) {
             arrow.moveTo(x, y);
-            arrow.lineTo(x - dx * size, y - size * 0.72f);
+            arrow.lineTo(x - dx * size, y - size * 0.68f);
             arrow.moveTo(x, y);
-            arrow.lineTo(x - dx * size, y + size * 0.72f);
+            arrow.lineTo(x - dx * size, y + size * 0.68f);
         } else {
             arrow.moveTo(x, y);
-            arrow.lineTo(x - size * 0.72f, y - dy * size);
+            arrow.lineTo(x - size * 0.68f, y - dy * size);
             arrow.moveTo(x, y);
-            arrow.lineTo(x + size * 0.72f, y - dy * size);
+            arrow.lineTo(x + size * 0.68f, y - dy * size);
         }
         canvas.drawPath(arrow, p);
+    }
+
+    // ========== 原有辅助方法 ==========
+    private void drawDirection(Canvas canvas, int direction, float left, float width) {
+        drawDirection(canvas, direction, left, width, paint);
+    }
+
+    private void drawArrowHead(Canvas canvas, float x, float y, float dx, float dy) {
+        drawArrowHead(canvas, x, y, dx, dy, paint);
     }
 
     private LaneIcon iconForLane(int lane) {
