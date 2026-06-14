@@ -19,6 +19,7 @@ const manifestPath = path.join(publicDir, "update.json");
 const manifestTemplatePath = path.join(__dirname, "update.template.json");
 const pluginsTemplatePath = path.join(__dirname, "plugins.template.json");
 const pluginsManifestPath = path.join(publicDir, "plugins.json");
+const versionsManifestPath = path.join(publicDir, "versions.json");
 const rootChangelogPath = path.join(__dirname, "..", "CHANGELOG.md");
 const syncScriptPath = path.join(__dirname, "sync-build.js");
 const marketDataDir = process.env.MARKET_DATA_DIR || __dirname;
@@ -281,6 +282,38 @@ function readPlugins(req) {
   return data;
 }
 
+function readVersions(req, channel = "server") {
+  const baseUrl = publicBaseUrl(req);
+  const publicRoot = path.resolve(publicDir);
+  const data = fs.existsSync(versionsManifestPath)
+    ? JSON.parse(fs.readFileSync(versionsManifestPath, "utf8"))
+    : {schemaVersion: 1, generatedAt: null, versions: []};
+  const versions = Array.isArray(data.versions) ? data.versions : [];
+  data.versions = versions.map((version) => {
+    const next = {...version};
+    const rawPath = String(next.apkPath || next.path || "").replace(/\\/g, "/").replace(/^\/+/, "");
+    const localPath = rawPath ? path.resolve(publicDir, rawPath) : "";
+    const localFileExists = localPath
+      && localPath.startsWith(publicRoot + path.sep)
+      && fs.existsSync(localPath)
+      && fs.statSync(localPath).isFile();
+    if (channel === "github" && next.githubApkUrl) {
+      next.apkUrl = next.githubApkUrl;
+      next.downloadChannel = "github";
+    } else if (localFileExists) {
+      next.apkUrl = new URL(`/${rawPath}`, baseUrl).toString();
+      next.downloadChannel = channel === "github" ? "server-fallback" : "server";
+      next.size = fs.statSync(localPath).size;
+      next.sha256 = next.sha256 || sha256(localPath);
+    }
+    delete next.apkPath;
+    delete next.path;
+    delete next.githubApkUrl;
+    return next;
+  });
+  return data;
+}
+
 function resolveChangelogPath() {
   const generatedPath = path.join(publicDir, "CHANGELOG.md");
   if (fs.existsSync(generatedPath)) {
@@ -368,6 +401,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "GET" && url.pathname === "/plugins/submit") {
       sendFile(res, path.join(publicDir, "plugin-submit.html"), "text/html; charset=utf-8");
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/versions") {
+      sendFile(res, path.join(publicDir, "versions.html"), "text/html; charset=utf-8");
       return;
     }
     if (req.method === "GET" && url.pathname === "/admin/plugins") {
@@ -557,6 +594,14 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 200, readPlugins(req));
       return;
     }
+    if (req.method === "GET" && url.pathname === "/versions.json") {
+      sendJson(res, 200, readVersions(req, "server"));
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/versions-github.json") {
+      sendJson(res, 200, readVersions(req, "github"));
+      return;
+    }
     if (req.method === "GET" && url.pathname === "/apk/amap_companion_signed.apk") {
       sendFile(res, path.join(publicDir, "apk", "amap_companion_signed.apk"), "application/vnd.android.package-archive");
       return;
@@ -574,6 +619,7 @@ const server = http.createServer(async (req, res) => {
       const ext = path.extname(staticFile).toLowerCase();
       const types = {
         ".html": "text/html; charset=utf-8",
+        ".apk": "application/vnd.android.package-archive",
         ".css": "text/css; charset=utf-8",
         ".js": "application/javascript; charset=utf-8",
         ".json": "application/json; charset=utf-8",

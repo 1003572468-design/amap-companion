@@ -789,7 +789,6 @@
       .changelog-scroll { max-height: 360px; }
       .changelog-scroll h2 { font-size: 1rem; }
       .changelog-scroll li { font-size: 0.78rem; }
-
       /* links */
       .links-section { padding: 12px 20px 48px; }
       .links-grid { grid-template-columns: 1fr; gap: 10px; }
@@ -975,9 +974,9 @@
 
 <div class="links-section">
   <div class="links-grid reveal">
-    <a class="link-card" id="link-release" href="https://github.com/zuo-qirun/amap-companion/releases" target="_blank">
+    <a class="link-card" href="/versions">
       <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-      <span>Release 历史</span>
+      <span>历史版本</span>
       <span class="arrow">→</span>
     </a>
     <a class="link-card" href="https://github.com/zuo-qirun/amap-companion" target="_blank">
@@ -1062,13 +1061,11 @@ function renderMarkdown(md) {
   if (inCode) html += "</code></pre>";
   return html;
 }
-
 async function init() {
   var btn = document.getElementById("download-btn");
   var meta = document.getElementById("download-meta");
   var ver = document.getElementById("hero-version");
   var clEl = document.getElementById("changelog-content");
-  var releaseLink = document.getElementById("link-release");
 
   try {
     var resp = await fetch("/update.json");
@@ -1079,7 +1076,6 @@ async function init() {
     if (info.size) parts.push(formatSize(info.size));
     parts.push("Android");
     meta.textContent = parts.join(" · ");
-    if (info.releaseUrl) releaseLink.href = info.releaseUrl;
   } catch (e) { meta.textContent = "Android"; }
 
   try {

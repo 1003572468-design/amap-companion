@@ -402,6 +402,10 @@ public class OverlayService extends Service {
             stopSelfResult(startId);
             return START_NOT_STICKY;
         }
+        if (intent != null && AppPrefs.ACTION_DIAGNOSTIC_REPLAY.equals(intent.getAction())) {
+            handleBroadcast(intent);
+            return START_STICKY;
+        }
         if (!onCreateDelayed) {
             ensureOverlay();
             ensureClusterMirror();
@@ -497,6 +501,7 @@ public class OverlayService extends Service {
         filter.addAction(AppPrefs.ACTION_OVERLAY_STYLE_CHANGED);
         filter.addAction(AppPrefs.ACTION_DISPLAY_POLICY_CHANGED);
         filter.addAction(AppPrefs.ACTION_PLUGINS_CHANGED);
+        filter.addAction(AppPrefs.ACTION_DIAGNOSTIC_REPLAY);
         try {
             registerReceiver(receiver, filter);
         } catch (Throwable t) {
@@ -3067,6 +3072,10 @@ public class OverlayService extends Service {
             return;
         }
         String action = intent.getAction();
+        if (AppPrefs.ACTION_DIAGNOSTIC_REPLAY.equals(action)) {
+            handleDiagnosticReplay(intent);
+            return;
+        }
         if (AppPrefs.ACTION_OVERLAY_SCALE_CHANGED.equals(action)) {
             rebuildOverlay();
             return;
@@ -3114,6 +3123,9 @@ public class OverlayService extends Service {
         Log.d(TAG, "recv action=" + action + " extras=" + describeExtras(extras));
         if (extras == null) {
             return;
+        }
+        if (isAmapRuntimeBroadcastAction(action)) {
+            BroadcastEventRecorder.record(intent);
         }
         currentRawKeyType = intValue(extras, "KEY_TYPE", -1);
 
@@ -3181,6 +3193,30 @@ public class OverlayService extends Service {
         if (displayPolicyChanged) {
             syncMainOverlayAttachment();
             ensureClusterMirror();
+        }
+    }
+
+    private void handleDiagnosticReplay(Intent intent) {
+        String eventJson = intent.getStringExtra(AppPrefs.EXTRA_DIAGNOSTIC_EVENT_JSON);
+        if (TextUtils.isEmpty(eventJson)) {
+            Log.d(TAG, "diagnostic replay skipped: empty event");
+            return;
+        }
+        try {
+            BroadcastEvent event = BroadcastEvent.fromJson(eventJson);
+            if (event == null) {
+                Log.d(TAG, "diagnostic replay skipped: invalid event");
+                return;
+            }
+            Intent replay = event.toReplayIntent();
+            if (replay == null) {
+                Log.d(TAG, "diagnostic replay skipped: empty action");
+                return;
+            }
+            replay.putExtra(AppPrefs.EXTRA_DIAGNOSTIC_REPLAY, true);
+            handleBroadcast(replay);
+        } catch (Throwable t) {
+            Log.e(TAG, "diagnostic replay failed", t);
         }
     }
 

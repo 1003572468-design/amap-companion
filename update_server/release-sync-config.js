@@ -16,4 +16,27 @@ function compileAssetPattern(value) {
   return new RegExp(source, flags);
 }
 
-module.exports = {compileAssetPattern};
+function parseHistoryReleaseLimit(value, fallback = 20) {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.max(0, Math.floor(parsed));
+}
+
+function safePathSegment(value, fallback = "release") {
+  const cleaned = String(value || "")
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 96);
+  if (/^[.]+$/.test(cleaned)) {
+    return fallback;
+  }
+  return cleaned || fallback;
+}
+
+module.exports = {compileAssetPattern, parseHistoryReleaseLimit, safePathSegment};

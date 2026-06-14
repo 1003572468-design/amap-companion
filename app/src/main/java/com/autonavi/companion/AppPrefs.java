@@ -69,6 +69,9 @@ public final class AppPrefs {
     public static final String ACTION_OVERLAY_STYLE_CHANGED     = "com.autonavi.companion.OVERLAY_STYLE_CHANGED";
     public static final String ACTION_DISPLAY_POLICY_CHANGED    = "com.autonavi.companion.DISPLAY_POLICY_CHANGED";
     public static final String ACTION_PLUGINS_CHANGED           = "com.autonavi.companion.PLUGINS_CHANGED";
+    public static final String ACTION_DIAGNOSTIC_REPLAY         = "com.autonavi.companion.DIAGNOSTIC_REPLAY";
+    public static final String EXTRA_DIAGNOSTIC_EVENT_JSON      = "diagnostic_event_json";
+    public static final String EXTRA_DIAGNOSTIC_REPLAY          = "diagnostic_replay";
 
     // ── UI style values ──────────────────────────────────────────────────
     public static final String DEFAULT_TARGET_PACKAGE           = "com.autonavi.amapClone";

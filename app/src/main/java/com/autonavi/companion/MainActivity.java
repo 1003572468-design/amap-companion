@@ -229,7 +229,7 @@ public class MainActivity extends Activity {
                     button("\u5173\u95ed\u4f34\u4fa3\u670d\u52a1", v -> stopCompanionService(), 0xFFB45309));
             addButtonPair(parent,
                     button("\u6253\u5f00\u76ee\u6807\u5e94\u7528", v -> openTargetApp(), 0xFF111827),
-                    null);
+                    button("\u8bca\u65ad\u4e2d\u5fc3", v -> openDiagnosticCenter(), 0xFF0F172A));
             addButtonPair(parent,
                     button("\u9009\u62e9\u4e0b\u8f7d\u6e20\u9053", v -> chooseUpdateChannel(), 0xFF334155),
                     button("\u68c0\u67e5\u66f4\u65b0", v -> checkForUpdates(true), 0xFF059669));
@@ -247,6 +247,7 @@ public class MainActivity extends Activity {
         parent.addView(button("\u68c0\u67e5\u66f4\u65b0", v -> checkForUpdates(true), 0xFF059669));
         parent.addView(button("\u63d2\u4ef6\u5e02\u573a / \u672c\u5730\u63d2\u4ef6", v -> showPluginHubDialog(), 0xFF7C3AED));
         parent.addView(button("\u67e5\u770b/\u4fdd\u5b58\u65e5\u5fd7", v -> showLogcatDialog(), 0xFF4F46E5));
+        parent.addView(button("\u8bca\u65ad\u4e2d\u5fc3", v -> openDiagnosticCenter(), 0xFF0F172A));
     }
 
     private void addAnnouncementSection(LinearLayout root) {
@@ -1828,6 +1829,10 @@ public class MainActivity extends Activity {
         if (launch != null) {
             startActivity(launch);
         }
+    }
+
+    private void openDiagnosticCenter() {
+        startActivity(new Intent(this, DiagnosticActivity.class));
     }
 
     private boolean redirectDesktopLaunchToTarget(Intent sourceIntent) {
