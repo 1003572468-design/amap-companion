@@ -54,9 +54,6 @@ public class LaneBarView extends View {
         super(context);
         setMinimumHeight(dp(70));  // 增加最小高度，为箭头预留空间
         setVisibility(GONE);
-        // 关键：禁用裁剪，允许箭头超出边界显示
-        setClipChildren(false);
-        setClipToPadding(false);
     }
 
     // ========== 原有方法保持不变 ==========
