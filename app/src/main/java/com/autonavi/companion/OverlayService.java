@@ -402,10 +402,6 @@ public class OverlayService extends Service {
             stopSelfResult(startId);
             return START_NOT_STICKY;
         }
-        if (intent != null && AppPrefs.ACTION_DIAGNOSTIC_REPLAY.equals(intent.getAction())) {
-            handleBroadcast(intent);
-            return START_STICKY;
-        }
         if (!onCreateDelayed) {
             ensureOverlay();
             ensureClusterMirror();
@@ -501,7 +497,6 @@ public class OverlayService extends Service {
         filter.addAction(AppPrefs.ACTION_OVERLAY_STYLE_CHANGED);
         filter.addAction(AppPrefs.ACTION_DISPLAY_POLICY_CHANGED);
         filter.addAction(AppPrefs.ACTION_PLUGINS_CHANGED);
-        filter.addAction(AppPrefs.ACTION_DIAGNOSTIC_REPLAY);
         try {
             registerReceiver(receiver, filter);
         } catch (Throwable t) {
@@ -1501,7 +1496,7 @@ public class OverlayService extends Service {
 
     private GradientDrawable createDynamicIslandBackground(float scale) {
         GradientDrawable bg = new GradientDrawable();
-        bg.setCornerRadius(scaledDp(999, scale));
+        bg.setCornerRadius(scaledDp(0, scale));
         int opacity = AppPrefs.getBackgroundOpacityPercent(this);
         bg.setColor(withAlpha(AppPrefs.getBackgroundColor(this), opacity));
         bg.setStroke(scaledDp(1, scale), withAlpha(0xFFFFFFFF, AppPrefs.strokeOpacityForBackground(opacity)));
@@ -3072,10 +3067,6 @@ public class OverlayService extends Service {
             return;
         }
         String action = intent.getAction();
-        if (AppPrefs.ACTION_DIAGNOSTIC_REPLAY.equals(action)) {
-            handleDiagnosticReplay(intent);
-            return;
-        }
         if (AppPrefs.ACTION_OVERLAY_SCALE_CHANGED.equals(action)) {
             rebuildOverlay();
             return;
@@ -3123,9 +3114,6 @@ public class OverlayService extends Service {
         Log.d(TAG, "recv action=" + action + " extras=" + describeExtras(extras));
         if (extras == null) {
             return;
-        }
-        if (isAmapRuntimeBroadcastAction(action)) {
-            BroadcastEventRecorder.record(intent);
         }
         currentRawKeyType = intValue(extras, "KEY_TYPE", -1);
 
@@ -3193,30 +3181,6 @@ public class OverlayService extends Service {
         if (displayPolicyChanged) {
             syncMainOverlayAttachment();
             ensureClusterMirror();
-        }
-    }
-
-    private void handleDiagnosticReplay(Intent intent) {
-        String eventJson = intent.getStringExtra(AppPrefs.EXTRA_DIAGNOSTIC_EVENT_JSON);
-        if (TextUtils.isEmpty(eventJson)) {
-            Log.d(TAG, "diagnostic replay skipped: empty event");
-            return;
-        }
-        try {
-            BroadcastEvent event = BroadcastEvent.fromJson(eventJson);
-            if (event == null) {
-                Log.d(TAG, "diagnostic replay skipped: invalid event");
-                return;
-            }
-            Intent replay = event.toReplayIntent();
-            if (replay == null) {
-                Log.d(TAG, "diagnostic replay skipped: empty action");
-                return;
-            }
-            replay.putExtra(AppPrefs.EXTRA_DIAGNOSTIC_REPLAY, true);
-            handleBroadcast(replay);
-        } catch (Throwable t) {
-            Log.e(TAG, "diagnostic replay failed", t);
         }
     }
 
@@ -4311,107 +4275,51 @@ public class OverlayService extends Service {
     }
 
     private View lightPill(Context context, TrafficLightParser.LightState state, boolean showDirectionLabel,
-                           float scale, int seconds) {
-        float oldDensity = activeDensity;
-        activeDensity = context.getResources().getDisplayMetrics().density;
-        try {
-            boolean showArrowBadge = showDirectionLabel && state.dir >= 0;
-
-            // Dynamic island (main mode) cruise: use classic capsule style matching lane size
-            boolean useClassicCruisePill = AppPrefs.isCardUiEnabled(this)
-                    || (AppPrefs.isDynamicIslandUiEnabled(this) && inCruiseMode);
-            // Dynamic island (test mode) keeps its own compact style
-            if (!useClassicCruisePill && AppPrefs.isDynamicIslandUiEnabled(this)) {
-                return buildCompactLightPill(context, state, showArrowBadge, scale, seconds, oldDensity);
-            }
-
-            boolean dynamicIsland = AppPrefs.isDynamicIslandUiEnabled(this);
-            // Cruise mode in main dynamic island uses classic sizing matched to lane
-            if (useClassicCruisePill) {
-                dynamicIsland = true;
-            }
-            int pillHeight = useClassicCruisePill ? 24 : (dynamicIsland ? 36 : 44);
-            int arrowSize = useClassicCruisePill ? 14 : (dynamicIsland ? 17 : 25);
-            int minW = showArrowBadge ? (useClassicCruisePill ? 46 : (dynamicIsland ? 76 : 92))
-                    : (useClassicCruisePill ? 44 : (dynamicIsland ? 62 : 76));
-
-            LinearLayout view = new LinearLayout(context);
-            view.setOrientation(LinearLayout.HORIZONTAL);
-            view.setGravity(Gravity.CENTER);
-            view.setMinimumWidth(scaledDp(minW, scale));
-            view.setMinimumHeight(scaledDp(pillHeight, scale));
-            int padH = useClassicCruisePill ? 6 : (showArrowBadge ? (dynamicIsland ? 5 : 6) : (dynamicIsland ? 7 : 8));
-            int padV = useClassicCruisePill ? 1 : (dynamicIsland ? 3 : 4);
-            int padR = useClassicCruisePill ? 6 : (showArrowBadge ? (dynamicIsland ? 8 : 10) : (dynamicIsland ? 8 : 10));
-            view.setPadding(scaledDp(padH, scale), scaledDp(padV, scale),
-                    scaledDp(padR, scale), scaledDp(padV, scale));
-
-            GradientDrawable bg = new GradientDrawable();
-            bg.setColor(withAlpha(state.color, 92));
-            bg.setCornerRadius(scaledDp(pillHeight / 2, scale));
-            bg.setStroke(scaledDp(1, scale), withAlpha(0xFFFFFFFF, 72));
-            view.setBackground(bg);
-
-            if (showArrowBadge) {
-                View arrow;
-                if (useClassicCruisePill) {
-                    // Create arrow without inner padding for tighter cruise capsule
-                    Bitmap diyBitmap = loadDiyArrowBitmap(state.dir);
-                    if (diyBitmap != null) {
-                        ImageView img = new ImageView(context);
-                        img.setImageBitmap(diyBitmap);
-                        img.setScaleType(ImageView.ScaleType.FIT_CENTER);
-                        arrow = img;
-                    } else {
-                        ImageView img = new ImageView(context);
-                        img.setImageResource(defaultCruiseArrowResource(state.dir));
-                        img.setScaleType(ImageView.ScaleType.FIT_CENTER);
-                        arrow = img;
-                    }
-                } else {
-                    arrow = diyArrowBadge(context, state, scale);
-                }
-                LinearLayout.LayoutParams arrowLp = new LinearLayout.LayoutParams(
-                        scaledDp(arrowSize, scale), scaledDp(arrowSize, scale));
-                arrowLp.setMargins(0, 0, scaledDp(useClassicCruisePill ? 1 : (dynamicIsland ? 5 : 6), scale), 0);
-                view.addView(arrow, arrowLp);
-            } else if (!useClassicCruisePill && state.color != AmapConstants.COLOR_YELLOW) {
-                TextView dot = new TextView(context);
-                GradientDrawable dotBg = new GradientDrawable();
-                dotBg.setShape(GradientDrawable.OVAL);
-                dotBg.setColor(state.color);
-                dotBg.setStroke(scaledDp(3, scale), withAlpha(0xFFFFFFFF, 76));
-                dot.setBackground(dotBg);
-                LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(
-                        scaledDp(arrowSize, scale), scaledDp(arrowSize, scale));
-                dotLp.setMargins(0, 0, scaledDp(dynamicIsland ? 5 : 7, scale), 0);
-                view.addView(dot, dotLp);
-            }
-
-            LinearLayout textColumn = new LinearLayout(context);
-            textColumn.setOrientation(LinearLayout.VERTICAL);
-            textColumn.setGravity(Gravity.CENTER);
-
-            TextView time = new TextView(context);
-            time.setText(String.valueOf(seconds));
-            time.setTextColor(Color.WHITE);
-            time.setTextSize(TypedValue.COMPLEX_UNIT_PX, scaledDp(useClassicCruisePill ? 14f : (dynamicIsland ? 17f : 21f), scale));
-            time.setTypeface(Typeface.DEFAULT_BOLD);
-            time.setGravity(Gravity.CENTER);
-            textColumn.addView(time, new LinearLayout.LayoutParams(-2, -2));
-
-            view.addView(textColumn, new LinearLayout.LayoutParams(-2, -2));
-
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, scaledDp(pillHeight, scale));
-            lp.setMargins(scaledDp(useClassicCruisePill ? 2 : (dynamicIsland ? 2 : 3), scale), scaledDp(1, scale),
-                    scaledDp(useClassicCruisePill ? 2 : (dynamicIsland ? 2 : 3), scale), scaledDp(1, scale));
-            view.setLayoutParams(lp);
-            FontManager.applyToViewTree(context, view);
-            return view;
-        } finally {
-            activeDensity = oldDensity;
-        }
+                       float scale, int seconds) {
+    float oldDensity = activeDensity;
+    activeDensity = context.getResources().getDisplayMetrics().density;
+    try {
+        // 圆形红绿灯，倒计时数字显示在下方
+        int circleSize = scaledDp(22, scale);
+        
+        // 创建垂直布局（圆形在上，数字在下）
+        LinearLayout container = new LinearLayout(context);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setGravity(Gravity.CENTER);
+        
+        // 圆形灯
+        FrameLayout circle = new FrameLayout(context);
+        GradientDrawable circleBg = new GradientDrawable();
+        circleBg.setShape(GradientDrawable.OVAL);
+        circleBg.setColor(withAlpha(state.color, 92));
+        circleBg.setStroke(scaledDp(2, scale), state.color);
+        circle.setBackground(circleBg);
+        
+        FrameLayout.LayoutParams circleLp = new FrameLayout.LayoutParams(circleSize, circleSize);
+        circle.setLayoutParams(circleLp);
+        container.addView(circle);
+        
+        // 倒计时数字（显示在圆形下方）
+        TextView time = new TextView(context);
+        time.setText(String.valueOf(seconds));
+        time.setTextColor(Color.WHITE);
+        time.setTextSize(TypedValue.COMPLEX_UNIT_PX, scaledDp(15f, scale));
+        time.setTypeface(Typeface.DEFAULT_BOLD);
+        time.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams timeLp = new LinearLayout.LayoutParams(-2, -2);
+        timeLp.topMargin = scaledDp(2, scale);
+        container.addView(time, timeLp);
+        
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        lp.setMargins(scaledDp(4, scale), scaledDp(2, scale), scaledDp(4, scale), scaledDp(2, scale));
+        container.setLayoutParams(lp);
+        
+        FontManager.applyToViewTree(context, container);
+        return container;
+    } finally {
+        activeDensity = oldDensity;
     }
+}
 
     private View buildCompactLightPill(Context context, TrafficLightParser.LightState state, boolean showArrowBadge,
                                         float scale, int seconds, float oldDensity) {
@@ -4993,7 +4901,7 @@ public class OverlayService extends Service {
 
         View cameraBox = row.findViewWithTag("camera_box");
         if (cameraBox instanceof LinearLayout) {
-            boolean hasCamera = cameraIndex != -1 && cameraDist >= 0;
+            boolean hasCamera = cameraIndex != -1 && cameraDist >= 0 && cameraDist >= 50;
             if (hasCamera) {
                 cameraBox.setVisibility(View.VISIBLE);
                 LinearLayout box = (LinearLayout) cameraBox;
@@ -5121,7 +5029,13 @@ public class OverlayService extends Service {
             updateCompactCruiseDirectionText(compactCruiseDirText);
             updateCompactCruiseDirectionText(clusterCompactCruiseDirText);
         }
-
+            if (compactCruiseDirText != null) {
+        compactCruiseDirText.setVisibility(View.GONE);
+    }
+    if (clusterCompactCruiseDirText != null) {
+        clusterCompactCruiseDirText.setVisibility(View.GONE);
+    }
+		
         String province = valueString(extras, "PROVINCE_NAME", "provinceName");
         String city = valueString(extras, "CITY_NAME", "cityName");
         String district = valueString(extras, "DISTRICT_NAME", "districtName");
@@ -6885,162 +6799,193 @@ public class OverlayService extends Service {
         updateFullModeAlternatingDisplay();
     }
 
-    private void populateCompactWidgetRow(int speed, int cameraIndex,
-                                          int cameraDist, int cameraType, int lightNum) {
-        populateOneCompactWidgetRow(compactWidgetRow, this, overlayScale, speed, cameraIndex,
-                cameraDist, cameraType, lightNum);
-        if (clusterContext != null) {
-            populateOneCompactWidgetRow(clusterCompactWidgetRow, clusterContext, clusterScale, speed,
-                    cameraIndex, cameraDist, cameraType, lightNum);
+private void ensureCompactWidgetChildren(LinearLayout row, Context context, float scale) {
+    if (row == null || row.getChildCount() > 0) {
+        return;
+    }
+    
+    int iconSize = scaledDp(24, scale);
+
+    // ===== 限速模块：垂直布局（图标在上，数字在下）=====
+    LinearLayout speedContainer = new LinearLayout(context);
+    speedContainer.setTag("speed_box");
+    speedContainer.setOrientation(LinearLayout.VERTICAL);
+    speedContainer.setGravity(Gravity.CENTER);
+    
+    FrameLayout speedIconFrame = new FrameLayout(context);
+    ImageView speedIcon = new ImageView(context);
+    applyEdogIcon(speedIcon, -1, true);
+    speedIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+    speedIconFrame.addView(speedIcon, new FrameLayout.LayoutParams(iconSize, iconSize));
+    speedContainer.addView(speedIconFrame);
+    
+    TextView speedText = new TextView(context);
+    speedText.setTextColor(Color.WHITE);
+    speedText.setTextSize(TypedValue.COMPLEX_UNIT_PX, scaledDp(11f, scale));
+    speedText.setTypeface(Typeface.DEFAULT_BOLD);
+    speedText.setGravity(Gravity.CENTER);
+    speedText.setIncludeFontPadding(false);
+    speedContainer.addView(speedText);
+    speedContainer.setVisibility(View.GONE);
+    
+    LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-2, -2);
+    slp.setMargins(0, 0, scaledDp(6, scale), 0);
+    row.addView(speedContainer, slp);
+
+    // ===== 电子眼模块：垂直布局（图标在上，距离数字在下）=====
+    LinearLayout cameraContainer = new LinearLayout(context);
+    cameraContainer.setTag("camera_box");
+    cameraContainer.setOrientation(LinearLayout.VERTICAL);
+    cameraContainer.setGravity(Gravity.CENTER);
+    cameraContainer.setVisibility(View.GONE);
+    
+    FrameLayout cameraIconFrame = new FrameLayout(context);
+    cameraIconFrame.setTag("camera_icon_frame");
+    ImageView cameraIcon = new ImageView(context);
+    applyEdogIcon(cameraIcon, -1, false);
+    cameraIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+    cameraIconFrame.addView(cameraIcon, new FrameLayout.LayoutParams(iconSize, iconSize));
+    
+    TextView cameraSpeedOverlay = new TextView(context);
+    cameraSpeedOverlay.setTextColor(Color.WHITE);
+    cameraSpeedOverlay.setTextSize(TypedValue.COMPLEX_UNIT_PX, scaledDp(12f, scale));
+    cameraSpeedOverlay.setTypeface(Typeface.DEFAULT_BOLD);
+    cameraSpeedOverlay.setGravity(Gravity.CENTER);
+    cameraSpeedOverlay.setIncludeFontPadding(false);
+    cameraSpeedOverlay.setVisibility(View.GONE);
+    cameraIconFrame.addView(cameraSpeedOverlay, new FrameLayout.LayoutParams(iconSize, iconSize));
+    cameraContainer.addView(cameraIconFrame);
+    
+    TextView distText = new TextView(context);
+    distText.setTextColor(Color.WHITE);
+    distText.setTextSize(TypedValue.COMPLEX_UNIT_PX, scaledDp(12f, scale));
+    distText.setTypeface(Typeface.DEFAULT_BOLD);
+    distText.setGravity(Gravity.CENTER);
+    distText.setSingleLine(true);
+    cameraContainer.addView(distText);
+    
+    LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-2, -2);
+    clp.setMargins(0, 0, scaledDp(6, scale), 0);
+    row.addView(cameraContainer, clp);
+
+    // ===== 红绿灯个数模块：垂直布局（图标在上，数字在下）=====
+    LinearLayout lightContainer = new LinearLayout(context);
+    lightContainer.setTag("light_box");
+    lightContainer.setOrientation(LinearLayout.VERTICAL);
+    lightContainer.setGravity(Gravity.CENTER);
+    lightContainer.setVisibility(View.GONE);
+    
+    ImageView lightIcon = new ImageView(context);
+    applyTrafficLightEdogIcon(lightIcon);
+    lightIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+    lightContainer.addView(lightIcon, new LinearLayout.LayoutParams(iconSize, iconSize));
+    
+    TextView lightText = new TextView(context);
+    lightText.setTextColor(Color.WHITE);
+    lightText.setTextSize(TypedValue.COMPLEX_UNIT_PX, scaledDp(12f, scale));
+    lightText.setTypeface(Typeface.DEFAULT_BOLD);
+    lightText.setGravity(Gravity.CENTER);
+    lightText.setSingleLine(true);
+    lightContainer.addView(lightText);
+    
+    LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(-2, -2);
+    llp.setMargins(0, 0, scaledDp(6, scale), 0);
+    row.addView(lightContainer, llp);
+
+    FontManager.applyToViewTree(context, row);
+}
+
+private void populateOneCompactWidgetRow(LinearLayout row, Context context, float scale, int speed,
+                                         int cameraIndex, int cameraDist, int cameraType, int lightNum) {
+    if (row == null) {
+        return;
+    }
+    if (!AppPrefs.isAlertVisible(this)) {
+        row.setVisibility(View.GONE);
+        return;
+    }
+    ensureCompactWidgetChildren(row, context, scale);
+    boolean anyVisible = false;
+
+    // 限速模块
+    View speedBox = row.findViewWithTag("speed_box");
+    if (speedBox instanceof LinearLayout) {
+        LinearLayout speedContainer = (LinearLayout) speedBox;
+        if (speed > 0) {
+            speedContainer.setVisibility(View.VISIBLE);
+            if (speedContainer.getChildCount() > 1 && speedContainer.getChildAt(1) instanceof TextView) {
+                TextView tv = (TextView) speedContainer.getChildAt(1);
+                tv.setText(String.valueOf(speed));
+                tv.setTextColor(Color.WHITE);
+            }
+            anyVisible = true;
+        } else {
+            speedContainer.setVisibility(View.GONE);
         }
     }
 
-    private void populateOneCompactWidgetRow(LinearLayout row, Context context, float scale, int speed,
-                                             int cameraIndex, int cameraDist, int cameraType, int lightNum) {
-        if (row == null) {
-            return;
-        }
-        if (!AppPrefs.isAlertVisible(this)) {
-            row.setVisibility(View.GONE);
-            return;
-        }
-        ensureCompactWidgetChildren(row, context, scale);
-        boolean anyVisible = false;
-
-        View speedBox = row.findViewWithTag("speed_box");
-        if (speedBox instanceof FrameLayout) {
-            if (speed > 0) {
-                speedBox.setVisibility(View.VISIBLE);
-                FrameLayout frame = (FrameLayout) speedBox;
+    // 电子眼模块（距离小于50米时隐藏）
+    View cameraBox = row.findViewWithTag("camera_box");
+    if (cameraBox instanceof LinearLayout) {
+        LinearLayout cameraContainer = (LinearLayout) cameraBox;
+        boolean hasCamera = cameraIndex != -1 && cameraDist >= 0 && cameraDist >= 50;
+        if (hasCamera) {
+            cameraContainer.setVisibility(View.VISIBLE);
+            View iconFrame = cameraContainer.findViewWithTag("camera_icon_frame");
+            if (iconFrame instanceof FrameLayout) {
+                FrameLayout frame = (FrameLayout) iconFrame;
+                boolean speedCamera = isSpeedCameraType(cameraType) && speed > 0;
+                if (frame.getChildCount() > 0 && frame.getChildAt(0) instanceof ImageView) {
+                    applyEdogIcon((ImageView) frame.getChildAt(0), cameraType, speedCamera);
+                }
                 if (frame.getChildCount() > 1 && frame.getChildAt(1) instanceof TextView) {
-                    ((TextView) frame.getChildAt(1)).setText(String.valueOf(speed));
-                }
-                anyVisible = true;
-            } else {
-                speedBox.setVisibility(View.GONE);
-            }
-        }
-
-        View cameraBox = row.findViewWithTag("camera_box");
-        if (cameraBox instanceof LinearLayout) {
-            boolean hasCamera = cameraIndex != -1 && cameraDist >= 0;
-            if (hasCamera) {
-                cameraBox.setVisibility(View.VISIBLE);
-                LinearLayout box = (LinearLayout) cameraBox;
-                View iconFrame = box.findViewWithTag("camera_icon_frame");
-                if (iconFrame instanceof FrameLayout) {
-                    FrameLayout frame = (FrameLayout) iconFrame;
-                    boolean speedCamera = isSpeedCameraType(cameraType) && speed > 0;
-                    if (frame.getChildCount() > 0 && frame.getChildAt(0) instanceof ImageView) {
-                        applyEdogIcon((ImageView) frame.getChildAt(0), cameraType, speedCamera);
-                    }
-                    if (frame.getChildCount() > 1 && frame.getChildAt(1) instanceof TextView) {
-                        TextView limit = (TextView) frame.getChildAt(1);
-                        limit.setText(speedCamera ? String.valueOf(speed) : "");
-                        limit.setVisibility(speedCamera ? View.VISIBLE : View.GONE);
+                    TextView limit = (TextView) frame.getChildAt(1);
+                    if (speedCamera && speed > 0) {
+                        limit.setText(String.valueOf(speed));
+                        limit.setVisibility(View.VISIBLE);
+                    } else {
+                        limit.setVisibility(View.GONE);
                     }
                 }
-                if (box.getChildCount() > 1 && box.getChildAt(1) instanceof TextView) {
-                    ((TextView) box.getChildAt(1)).setText(formatDistanceCompact(cameraDist));
-                }
-                anyVisible = true;
-            } else {
-                cameraBox.setVisibility(View.GONE);
             }
-        }
-
-        View lightBox = row.findViewWithTag("light_box");
-        if (lightBox instanceof LinearLayout) {
-            if (lightNum > 0) {
-                lightBox.setVisibility(View.VISIBLE);
-                LinearLayout box = (LinearLayout) lightBox;
-                if (box.getChildCount() > 1 && box.getChildAt(1) instanceof TextView) {
-                    ((TextView) box.getChildAt(1)).setText(lightNum + "\u4e2a");
-                }
-                anyVisible = true;
-            } else {
-                lightBox.setVisibility(View.GONE);
+            if (cameraContainer.getChildCount() > 1 && cameraContainer.getChildAt(1) instanceof TextView) {
+                TextView distText = (TextView) cameraContainer.getChildAt(1);
+                distText.setText(formatDistanceCompact(cameraDist));
             }
+            anyVisible = true;
+        } else {
+            cameraContainer.setVisibility(View.GONE);
         }
-
-        row.setVisibility(anyVisible ? View.VISIBLE : View.GONE);
     }
 
-    private void ensureCompactWidgetChildren(LinearLayout row, Context context, float scale) {
-        if (row == null || row.getChildCount() > 0) {
-            return;
+    // 红绿灯个数模块
+    View lightBox = row.findViewWithTag("light_box");
+    if (lightBox instanceof LinearLayout) {
+        LinearLayout lightContainer = (LinearLayout) lightBox;
+        if (lightNum > 0) {
+            lightContainer.setVisibility(View.VISIBLE);
+            if (lightContainer.getChildCount() > 1 && lightContainer.getChildAt(1) instanceof TextView) {
+                TextView tv = (TextView) lightContainer.getChildAt(1);
+                tv.setText(lightNum + "个");
+            }
+            anyVisible = true;
+        } else {
+            lightContainer.setVisibility(View.GONE);
         }
-        int iconSize = scaledDp(24, scale);
-
-        FrameLayout speedBox = new FrameLayout(context);
-        speedBox.setTag("speed_box");
-        ImageView speedIcon = new ImageView(context);
-        applyEdogIcon(speedIcon, -1, true);
-        speedIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        speedBox.addView(speedIcon, new FrameLayout.LayoutParams(iconSize, iconSize));
-        TextView speedText = new TextView(context);
-        speedText.setTextColor(0xFFDC2626);
-        speedText.setTextSize(scaledSp(11f, scale));
-        speedText.setTypeface(Typeface.DEFAULT_BOLD);
-        speedText.setGravity(Gravity.CENTER);
-        speedText.setIncludeFontPadding(false);
-        speedBox.addView(speedText, new FrameLayout.LayoutParams(iconSize, iconSize));
-        speedBox.setVisibility(View.GONE);
-        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-2, -2);
-        slp.setMargins(0, 0, scaledDp(3, scale), 0);
-        row.addView(speedBox, slp);
-
-        LinearLayout cameraBox = new LinearLayout(context);
-        cameraBox.setTag("camera_box");
-        cameraBox.setOrientation(LinearLayout.HORIZONTAL);
-        cameraBox.setGravity(Gravity.CENTER_VERTICAL);
-        cameraBox.setVisibility(View.GONE);
-        FrameLayout cameraIconFrame = new FrameLayout(context);
-        cameraIconFrame.setTag("camera_icon_frame");
-        ImageView cameraIcon = new ImageView(context);
-        applyEdogIcon(cameraIcon, -1, false);
-        cameraIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        cameraIconFrame.addView(cameraIcon, new FrameLayout.LayoutParams(iconSize, iconSize));
-        TextView cameraSpeed = new TextView(context);
-        cameraSpeed.setTextColor(0xFFDC2626);
-        cameraSpeed.setTextSize(scaledSp(11f, scale));
-        cameraSpeed.setTypeface(Typeface.DEFAULT_BOLD);
-        cameraSpeed.setGravity(Gravity.CENTER);
-        cameraSpeed.setIncludeFontPadding(false);
-        cameraSpeed.setVisibility(View.GONE);
-        cameraIconFrame.addView(cameraSpeed, new FrameLayout.LayoutParams(iconSize, iconSize));
-        cameraBox.addView(cameraIconFrame, new LinearLayout.LayoutParams(iconSize, iconSize));
-        TextView distText = new TextView(context);
-        distText.setTextColor(primaryTextColor());
-        distText.setTextSize(scaledSp(9f, scale));
-        distText.setTypeface(Typeface.DEFAULT_BOLD);
-        distText.setSingleLine(true);
-        cameraBox.addView(distText, new LinearLayout.LayoutParams(-2, -2));
-        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-2, -2);
-        clp.setMargins(0, 0, scaledDp(4, scale), 0);
-        row.addView(cameraBox, clp);
-
-        LinearLayout lightBox = new LinearLayout(context);
-        lightBox.setTag("light_box");
-        lightBox.setOrientation(LinearLayout.HORIZONTAL);
-        lightBox.setGravity(Gravity.CENTER_VERTICAL);
-        lightBox.setVisibility(View.GONE);
-        ImageView lightIcon = new ImageView(context);
-        applyTrafficLightEdogIcon(lightIcon);
-        lightIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        lightBox.addView(lightIcon, new LinearLayout.LayoutParams(iconSize, iconSize));
-        TextView lightText = new TextView(context);
-        lightText.setTextColor(primaryTextColor());
-        lightText.setTextSize(scaledSp(9f, scale));
-        lightText.setTypeface(Typeface.DEFAULT_BOLD);
-        lightText.setSingleLine(true);
-        lightBox.addView(lightText, new LinearLayout.LayoutParams(-2, -2));
-        LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(-2, -2);
-        llp.setMargins(0, 0, scaledDp(4, scale), 0);
-        row.addView(lightBox, llp);
-
-        FontManager.applyToViewTree(context, row);
     }
+
+    row.setVisibility(anyVisible ? View.VISIBLE : View.GONE);
+}
+
+private void populateCompactWidgetRow(int speed, int cameraIndex,
+                                      int cameraDist, int cameraType, int lightNum) {
+    populateOneCompactWidgetRow(compactWidgetRow, this, overlayScale, speed, cameraIndex,
+            cameraDist, cameraType, lightNum);
+    if (clusterContext != null) {
+        populateOneCompactWidgetRow(clusterCompactWidgetRow, clusterContext, clusterScale, speed,
+                cameraIndex, cameraDist, cameraType, lightNum);
+    }
+}
 
     private boolean isSpeedCameraType(int type) {
         return type == 0 || type == 2 || type == 3 || type == 7 || type == 10 || type == 11;
