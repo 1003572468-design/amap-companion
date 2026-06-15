@@ -6817,31 +6817,41 @@ private void ensureCompactWidgetChildren(LinearLayout row, Context context, floa
     
     int iconSize = scaledDp(24, scale);
 
-    // ===== 限速模块：垂直布局（图标在上，数字在下）=====
-    LinearLayout speedContainer = new LinearLayout(context);
-    speedContainer.setTag("speed_box");
-    speedContainer.setOrientation(LinearLayout.VERTICAL);
-    speedContainer.setGravity(Gravity.CENTER);
-    
-    FrameLayout speedIconFrame = new FrameLayout(context);
-    ImageView speedIcon = new ImageView(context);
-    applyEdogIcon(speedIcon, -1, true);
-    speedIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-    speedIconFrame.addView(speedIcon, new FrameLayout.LayoutParams(iconSize, iconSize));
-    speedContainer.addView(speedIconFrame);
-    
-    TextView speedText = new TextView(context);
-    speedText.setTextColor(Color.WHITE);
-    speedText.setTextSize(TypedValue.COMPLEX_UNIT_PX, scaledDp(11f, scale));
-    speedText.setTypeface(Typeface.DEFAULT_BOLD);
-    speedText.setGravity(Gravity.CENTER);
-    speedText.setIncludeFontPadding(false);
-    speedContainer.addView(speedText);
-    speedContainer.setVisibility(View.GONE);
-    
-    LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-2, -2);
-    slp.setMargins(0, 0, scaledDp(6, scale), 0);
-    row.addView(speedContainer, slp);
+   // ===== 限速模块：圆形背景，数字在圈内，红色 =====
+LinearLayout speedContainer = new LinearLayout(context);
+speedContainer.setTag("speed_box");
+speedContainer.setOrientation(LinearLayout.VERTICAL);
+speedContainer.setGravity(Gravity.CENTER);
+speedContainer.setVisibility(View.GONE);
+
+// 创建圆形背景容器
+FrameLayout speedCircleFrame = new FrameLayout(context);
+int circleSize = scaledDp(24, scale);  // 圆形大小
+FrameLayout.LayoutParams circleLp = new FrameLayout.LayoutParams(circleSize, circleSize);
+speedCircleFrame.setLayoutParams(circleLp);
+
+// 圆形背景（红色）
+GradientDrawable circleBg = new GradientDrawable();
+circleBg.setShape(GradientDrawable.OVAL);
+circleBg.setColor(0xFFFFFFFF);  // 白色背景
+circleBg.setStroke(scaledDp(2, scale), 0xFFDDDD00);  // 黄色边框
+speedCircleFrame.setBackground(circleBg);
+
+// 限速数字（白色，在圆形中央）
+TextView speedText = new TextView(context);
+speedText.setTextColor(Color.WHITE);
+speedText.setTextSize(TypedValue.COMPLEX_UNIT_PX, scaledDp(11f, scale));
+speedText.setTypeface(Typeface.DEFAULT_BOLD);
+speedText.setGravity(Gravity.CENTER);
+FrameLayout.LayoutParams textLp = new FrameLayout.LayoutParams(-1, -1);
+textLp.gravity = Gravity.CENTER;
+speedCircleFrame.addView(speedText, textLp);
+
+speedContainer.addView(speedCircleFrame);
+
+LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-2, -2);
+slp.setMargins(0, 0, scaledDp(8, scale), 0);
+row.addView(speedContainer, slp);
 
     // ===== 电子眼模块：垂直布局（图标在上，距离数字在下）=====
     LinearLayout cameraContainer = new LinearLayout(context);
