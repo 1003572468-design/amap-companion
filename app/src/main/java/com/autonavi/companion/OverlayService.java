@@ -1595,6 +1595,17 @@ public class OverlayService extends Service {
         // Lane section
         LinearLayout laneBox = (LinearLayout) root.findViewById(R.id.lane_section);
         island.laneBox = laneBox;
+		if (laneBox != null) {
+        laneBox.setClipChildren(false);
+        laneBox.setClipToPadding(false);
+        // 增加右侧内边距，为箭头预留空间
+        laneBox.setPadding(
+            laneBox.getPaddingLeft(),
+            laneBox.getPaddingTop(),
+            scaledDp(12, scale),  // 增加右侧内边距
+            laneBox.getPaddingBottom()
+        );
+    }
         LinearLayout.LayoutParams laneBoxLp = (LinearLayout.LayoutParams) laneBox.getLayoutParams();
         laneBoxLp.rightMargin = scaledDp(2, scale);
         LaneBarView lane = installLaneBar(root, R.id.lane_bar_placeholder, scale, 0.9f, 36, 2, true, true, 1);
