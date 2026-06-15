@@ -165,25 +165,39 @@ public class LaneBarView extends View {
         setVisibility(GONE);
     }
 
-    @Override
-    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        int count = Math.max(minCellCount, lanes == null ? 4 : lanes.length);
-        int width;
-        int height;
-        if (useCommonBitmapCrop && customLaneSpacingDp >= 0) {
-            int cellWidth = dp(27);
-            int padding = dp(customLaneSpacingDp);
-            width = cellWidth * count + padding;
-            height = dp(customHeightDp >= 0 ? customHeightDp : (compactSpacing ? 56 : 66));
-        } else {
-            width = dp(compactSpacing ? 40 : 48) * count + dp(compactSpacing ? 8 : 12);
-            height = dp(compactSpacing ? 56 : 66);
-        }
-        // 增加最小宽度，确保车道完整显示
-        int minWidth = dp(compactSpacing ? 100 : 130);
-        width = Math.max(width, minWidth);
-        setMeasuredDimension(resolveSize(width, widthMeasureSpec), resolveSize(height, heightMeasureSpec));
+@Override
+protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+    int count = lanes == null ? 0 : lanes.length;
+    
+    // 没有车道数据时，设置最小尺寸
+    if (count == 0) {
+        setMeasuredDimension(dp(100), dp(66));
+        return;
     }
+    
+    int width;
+    int height;
+    
+    // 根据实际车道数量动态计算宽度
+    // 每个车道宽度：紧凑模式35dp，普通模式42dp
+    int baseCellWidth = compactSpacing ? 35 : 42;
+    int horizontalPadding = compactSpacing ? 8 : 12;
+    
+    width = dp(baseCellWidth) * count + dp(horizontalPadding);
+    
+    // 高度计算
+    if (customHeightDp >= 0) {
+        height = dp(customHeightDp);
+    } else {
+        height = dp(compactSpacing ? 56 : 66);
+    }
+    
+    // 不设置最小宽度限制，完全由车道数决定
+    setMeasuredDimension(
+        resolveSize(width, widthMeasureSpec),
+        resolveSize(height, heightMeasureSpec)
+    );
+}
 
     @Override
     protected void onDraw(Canvas canvas) {
