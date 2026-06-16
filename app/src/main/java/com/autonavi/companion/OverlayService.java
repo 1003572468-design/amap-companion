@@ -3877,8 +3877,8 @@ turnIcon.setAdjustViewBounds(true);  // 新增
 		    view.setScaleType(ImageView.ScaleType.FIT_CENTER);
             view.setAdjustViewBounds(true);
         // ===== 缩小箭头 =====
-           view.setScaleX(0.7f);  // 从 1f 改为 0.7f
-           view.setScaleY(0.7f);
+           view.setScaleX(1.2f);  // 从 1f 改为 0.7f
+           view.setScaleY(1f);
             return;
         }
         int resId = turnIconResource(icon);
@@ -3890,8 +3890,8 @@ turnIcon.setAdjustViewBounds(true);  // 新增
         view.setImageResource(resId);
         view.setColorFilter(TURN_GREEN_FILTER);
         view.setRotation(rotation);
-		view.setScaleX(0.7f);  // 从 1f 改为 0.7f
-        view.setScaleY(0.7f);
+		view.setScaleX(1.2f);  // 从 1f 改为 0.7f
+        view.setScaleY(1f);
         view.setScaleType(ImageView.ScaleType.FIT_CENTER);
         view.setAdjustViewBounds(true);
         if (!shouldSyncTurnTextWithArrow() && !exitAlternatorActive) {
