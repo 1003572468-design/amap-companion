@@ -25,6 +25,13 @@ public final class TrafficLightParser {
 
     private TrafficLightParser() {}
 
+      public enum Direction {
+        NONE,       // 无方向/未知
+        STRAIGHT,   // 直行
+        LEFT,       // 左转
+        RIGHT,      // 右转
+        U_TURN      // 掉头
+    }
     // ── LightState ───────────────────────────────────────────────────────
     static final class LightState {
         int dir;
@@ -33,6 +40,7 @@ public final class TrafficLightParser {
         int color;
         long updatedAt;
         long ttlMs;
+        Direction direction;
     }
 
     // ── Result ───────────────────────────────────────────────────────────
@@ -609,6 +617,7 @@ public final class TrafficLightParser {
         state.color = colorForStatus(status, red, green);
         state.updatedAt = System.currentTimeMillis();
         state.ttlMs = inCruiseMode ? seconds * 1000L + 2000L : 4500L;
+        state.direction = dirToDirection(finalDir);
         LightState old = target.get(key);
         if (old == null || preferLightState(state, old)) {
             target.put(key, state);
