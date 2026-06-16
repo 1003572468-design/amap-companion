@@ -1198,10 +1198,13 @@ public class OverlayService extends Service {
         turn.setTextSize(scaledSp(22f, scale));
 
         ImageView turnIcon = (ImageView) root.findViewById(R.id.turn_icon);
-        LinearLayout.LayoutParams turnIconLp = (LinearLayout.LayoutParams) turnIcon.getLayoutParams();
-        turnIconLp.width = scaledDp(30, scale);
-        turnIconLp.height = scaledDp(30, scale);
-        turnIconLp.setMargins(0, 0, scaledDp(7, scale), 0);
+// 增大尺寸，防止箭头被裁剪
+int iconSize = scaledDp(38, scale);
+LinearLayout.LayoutParams turnIconLp = new LinearLayout.LayoutParams(iconSize, iconSize);
+turnIconLp.setMargins(0, 0, scaledDp(7, scale), 0);
+turnIcon.setLayoutParams(turnIconLp);
+turnIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);  // 新增
+turnIcon.setAdjustViewBounds(true);  // 新增
         if (cluster) {
             clusterTurnExitText = wrapArrowWithExitOverlay(turnIcon, scale);
         } else {
