@@ -4290,27 +4290,42 @@ public class OverlayService extends Service {
     float oldDensity = activeDensity;
     activeDensity = context.getResources().getDisplayMetrics().density;
     try {
-        // 圆形红绿灯，倒计时数字显示在下方
         int circleSize = scaledDp(22, scale);
         
-        // 创建垂直布局（圆形在上，数字在下）
         LinearLayout container = new LinearLayout(context);
         container.setOrientation(LinearLayout.VERTICAL);
         container.setGravity(Gravity.CENTER);
         
-        // 圆形灯
-        FrameLayout circle = new FrameLayout(context);
-        GradientDrawable circleBg = new GradientDrawable();
-        circleBg.setShape(GradientDrawable.OVAL);
-        circleBg.setColor(withAlpha(state.color, 92));
-        circleBg.setStroke(scaledDp(2, scale), state.color);
-        circle.setBackground(circleBg);
-        
+        // ===== 圆形灯（使用FrameLayout叠加箭头） =====
+        FrameLayout circleFrame = new FrameLayout(context);
         FrameLayout.LayoutParams circleLp = new FrameLayout.LayoutParams(circleSize, circleSize);
-        circle.setLayoutParams(circleLp);
-        container.addView(circle);
+        circleFrame.setLayoutParams(circleLp);
         
-        // 倒计时数字（显示在圆形下方）
+        // 圆形背景
+        View circleBg = new View(context);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setShape(GradientDrawable.OVAL);
+        bg.setColor(withAlpha(state.color, 92));
+        bg.setStroke(scaledDp(2, scale), state.color);
+        circleBg.setBackground(bg);
+        circleFrame.addView(circleBg, new FrameLayout.LayoutParams(-1, -1));
+        
+        // 箭头（使用TextView显示）
+        if (state.direction != TrafficLightParser.Direction.NONE) {
+            TextView arrowText = new TextView(context);
+            arrowText.setText(getArrowSymbol(state.direction));
+            arrowText.setTextColor(Color.WHITE);
+            arrowText.setTextSize(TypedValue.COMPLEX_UNIT_PX, scaledDp(14f, scale));
+            arrowText.setTypeface(Typeface.DEFAULT_BOLD);
+            arrowText.setGravity(Gravity.CENTER);
+            FrameLayout.LayoutParams arrowLp = new FrameLayout.LayoutParams(-1, -1);
+            arrowLp.gravity = Gravity.CENTER;
+            circleFrame.addView(arrowText, arrowLp);
+        }
+        
+        container.addView(circleFrame);
+        
+        // 倒计时数字
         TextView time = new TextView(context);
         time.setText(String.valueOf(seconds));
         time.setTextColor(Color.WHITE);
@@ -4329,6 +4344,24 @@ public class OverlayService extends Service {
         return container;
     } finally {
         activeDensity = oldDensity;
+    }
+}
+
+/**
+ * 获取箭头符号
+ */
+private String getArrowSymbol(TrafficLightParser.Direction direction) {
+    switch (direction) {
+        case STRAIGHT:
+            return "↑";      // 直行
+        case LEFT:
+            return "←";      // 左转
+        case RIGHT:
+            return "→";      // 右转
+        case U_TURN:
+            return "↶";      // 掉头（带弧线的U型箭头）
+        default:
+            return "";
     }
 }
 
@@ -6817,40 +6850,60 @@ private void ensureCompactWidgetChildren(LinearLayout row, Context context, floa
     
     int iconSize = scaledDp(24, scale);
 
-   // ===== 限速模块：圆形背景，数字在圈内，红色 =====
+// ===== 限速模块：使用GradientDrawable =====
 LinearLayout speedContainer = new LinearLayout(context);
 speedContainer.setTag("speed_box");
 speedContainer.setOrientation(LinearLayout.VERTICAL);
 speedContainer.setGravity(Gravity.CENTER);
 speedContainer.setVisibility(View.GONE);
 
-// 创建圆形背景容器
-FrameLayout speedCircleFrame = new FrameLayout(context);
-int circleSize = scaledDp(24, scale);  // 圆形大小
-FrameLayout.LayoutParams circleLp = new FrameLayout.LayoutParams(circleSize, circleSize);
-speedCircleFrame.setLayoutParams(circleLp);
+int circleSize = dpToPx(24);
+int textSize = dpToPx(11);
 
-// 圆形背景（红色）
+// 创建FrameLayout作为容器
+FrameLayout speedFrame = new FrameLayout(context);
+FrameLayout.LayoutParams frameLp = new FrameLayout.LayoutParams(circleSize, circleSize);
+speedFrame.setLayoutParams(frameLp);
+
+// 创建圆形背景（使用GradientDrawable）
+View circleView = new View(context);
 GradientDrawable circleBg = new GradientDrawable();
 circleBg.setShape(GradientDrawable.OVAL);
-circleBg.setColor(0xFFFFFFFF);  // 白色背景
-circleBg.setStroke(scaledDp(2, scale), 0xFFDDDD00);  // 黄色边框
-speedCircleFrame.setBackground(circleBg);
+circleBg.setColor(0xFFFF0000);  // 红色背景
+circleBg.setStroke(dpToPx(1.5f), 0xFFDDDD00);  // 黄色边框
+circleView.setBackground(circleBg);
 
-// 限速数字（白色，在圆形中央）
+// 将圆形View添加到FrameLayout
+FrameLayout.LayoutParams circleLp = new FrameLayout.LayoutParams(
+    FrameLayout.LayoutParams.MATCH_PARENT,
+    FrameLayout.LayoutParams.MATCH_PARENT
+);
+speedFrame.addView(circleView, circleLp);
+
+// 创建数字TextView
 TextView speedText = new TextView(context);
 speedText.setTextColor(Color.WHITE);
-speedText.setTextSize(TypedValue.COMPLEX_UNIT_PX, scaledDp(11f, scale));
+speedText.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize);
 speedText.setTypeface(Typeface.DEFAULT_BOLD);
 speedText.setGravity(Gravity.CENTER);
-FrameLayout.LayoutParams textLp = new FrameLayout.LayoutParams(-1, -1);
+speedText.setText("0");
+
+// 将TextView添加到FrameLayout（居中）
+FrameLayout.LayoutParams textLp = new FrameLayout.LayoutParams(
+    FrameLayout.LayoutParams.MATCH_PARENT,
+    FrameLayout.LayoutParams.MATCH_PARENT
+);
 textLp.gravity = Gravity.CENTER;
-speedCircleFrame.addView(speedText, textLp);
+speedFrame.addView(speedText, textLp);
 
-speedContainer.addView(speedCircleFrame);
+// 将FrameLayout添加到容器
+speedContainer.addView(speedFrame);
 
-LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-2, -2);
-slp.setMargins(0, 0, scaledDp(8, scale), 0);
+LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
+    LinearLayout.LayoutParams.WRAP_CONTENT,
+    LinearLayout.LayoutParams.WRAP_CONTENT
+);
+slp.setMargins(0, 0, dpToPx(8), 0);
 row.addView(speedContainer, slp);
 
     // ===== 电子眼模块：垂直布局（图标在上，距离数字在下）=====
