@@ -25,13 +25,15 @@ public final class TrafficLightParser {
 
     private TrafficLightParser() {}
 
-      public enum Direction {
+    // ===== Direction 枚举 =====
+    public enum Direction {
         NONE,       // 无方向/未知
         STRAIGHT,   // 直行
         LEFT,       // 左转
         RIGHT,      // 右转
         U_TURN      // 掉头
     }
+
     // ── LightState ───────────────────────────────────────────────────────
     static final class LightState {
         int dir;
@@ -40,7 +42,7 @@ public final class TrafficLightParser {
         int color;
         long updatedAt;
         long ttlMs;
-        Direction direction;
+        Direction direction;  // 方向枚举
     }
 
     // ── Result ───────────────────────────────────────────────────────────
@@ -610,17 +612,69 @@ public final class TrafficLightParser {
                                int status, int red, int green, int seconds,
                                boolean inCruiseMode, int navigationTurnDir, int currentTurnIcon) {
         LightState state = new LightState();
-        state.dir = normalizeLightDirectionForDisplay(dir, status, red, green,
+        // 保存归一化后的方向值
+        int finalDir = normalizeLightDirectionForDisplay(dir, status, red, green,
                 inCruiseMode, navigationTurnDir, currentTurnIcon);
+        state.dir = finalDir;
         state.status = status;
         state.seconds = seconds;
         state.color = colorForStatus(status, red, green);
         state.updatedAt = System.currentTimeMillis();
         state.ttlMs = inCruiseMode ? seconds * 1000L + 2000L : 4500L;
+        // 设置方向枚举
         state.direction = dirToDirection(finalDir);
         LightState old = target.get(key);
         if (old == null || preferLightState(state, old)) {
             target.put(key, state);
+        }
+    }
+
+    // ── Direction 转换工具方法 ───────────────────────────────────────────
+
+    /**
+     * 将方向代码转换为 Direction 枚举
+     */
+    public static Direction dirToDirection(int dir) {
+        if (dir == AmapConstants.DIR_UTURN) {
+            return Direction.U_TURN;
+        }
+        if (dir == AmapConstants.DIR_LEFT) {
+            return Direction.LEFT;
+        }
+        if (dir == AmapConstants.DIR_RIGHT || dir == AmapConstants.DIR_RIGHT_ALT) {
+            return Direction.RIGHT;
+        }
+        if (dir == AmapConstants.DIR_STRAIGHT) {
+            return Direction.STRAIGHT;
+        }
+        // 对角线方向归类为左转或右转
+        if (dir == AmapConstants.DIR_DIAGONAL_LEFT_1 || dir == AmapConstants.DIR_DIAGONAL_LEFT_2) {
+            return Direction.LEFT;
+        }
+        if (dir == AmapConstants.DIR_DIAGONAL_RIGHT_1 || dir == AmapConstants.DIR_DIAGONAL_RIGHT_2) {
+            return Direction.RIGHT;
+        }
+        return Direction.NONE;
+    }
+
+    /**
+     * 根据 Direction 获取箭头符号
+     */
+    public static String getArrowSymbol(Direction direction) {
+        if (direction == null) {
+            return "";
+        }
+        switch (direction) {
+            case STRAIGHT:
+                return "↑";
+            case LEFT:
+                return "←";
+            case RIGHT:
+                return "→";
+            case U_TURN:
+                return "↶";
+            default:
+                return "";
         }
     }
 
