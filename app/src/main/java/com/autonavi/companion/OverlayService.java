@@ -6853,15 +6853,15 @@ private void ensureCompactWidgetChildren(LinearLayout row, Context context, floa
     
     int iconSize = scaledDp(24, scale);
 
-// ===== 限速模块：使用GradientDrawable =====
+    // ===== 限速模块：使用GradientDrawable =====
 LinearLayout speedContainer = new LinearLayout(context);
 speedContainer.setTag("speed_box");
 speedContainer.setOrientation(LinearLayout.VERTICAL);
 speedContainer.setGravity(Gravity.CENTER);
 speedContainer.setVisibility(View.GONE);
 
-int circleSize = dpToPx(24);
-int textSize = dpToPx(11);
+int circleSize = scaledDp(24, scale);
+int textSize = scaledDp(11, scale);
 
 // 创建FrameLayout作为容器
 FrameLayout speedFrame = new FrameLayout(context);
@@ -6873,7 +6873,7 @@ View circleView = new View(context);
 GradientDrawable circleBg = new GradientDrawable();
 circleBg.setShape(GradientDrawable.OVAL);
 circleBg.setColor(0xFFFF0000);  // 红色背景
-circleBg.setStroke(dpToPx(1.5f), 0xFFDDDD00);  // 黄色边框
+circleBg.setStroke(scaledDp(2, scale), 0xFFDDDD00);  // 黄色边框
 circleView.setBackground(circleBg);
 
 // 将圆形View添加到FrameLayout
@@ -6906,7 +6906,7 @@ LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
     LinearLayout.LayoutParams.WRAP_CONTENT,
     LinearLayout.LayoutParams.WRAP_CONTENT
 );
-slp.setMargins(0, 0, dpToPx(8), 0);
+slp.setMargins(0, 0, scaledDp(8, scale), 0);
 row.addView(speedContainer, slp);
 
     // ===== 电子眼模块：垂直布局（图标在上，距离数字在下）=====
