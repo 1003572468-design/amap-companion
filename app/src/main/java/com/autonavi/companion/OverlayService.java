@@ -527,9 +527,9 @@ public class OverlayService extends Service {
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                         | WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR,
                 PixelFormat.TRANSLUCENT);
-        params.gravity = Gravity.TOP | Gravity.LEFT;
-        params.x = getSavedOverlayX();
-        params.y = getSavedOverlayY();
+        params.gravity = Gravity.BOTTOM | Gravity.START;
+        params.x = dp(0);
+        params.y = 0;
 
         android.graphics.Point screenSize = new android.graphics.Point();
         windowManager.getDefaultDisplay().getRealSize(screenSize);
