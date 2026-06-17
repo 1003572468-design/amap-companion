@@ -833,7 +833,7 @@ public class OverlayService extends Service {
         card.setBackground(bg);
 
         TextView mode = (TextView) card.findViewById(R.id.mode_text);
-        mode.setText("待接收导航/巡航信息");
+        mode.setText("");
         mode.setTextColor(primaryTextColor());
         mode.setTextSize(scaledSp(13f, scale));
         mode.setGravity(Gravity.CENTER);
@@ -1001,7 +1001,7 @@ public class OverlayService extends Service {
         mode.setTextSize(scaledSp(13f, scale));
         mode.setSingleLine(true);
         mode.setGravity(Gravity.CENTER);
-        mode.setText("待接收导航/巡航信息");
+        mode.setText("");
         root.addView(mode, new LinearLayout.LayoutParams(-2, -2));
 
         LinearLayout turnRow = new LinearLayout(context);
@@ -1180,7 +1180,7 @@ public class OverlayService extends Service {
         root.setBackground(cluster ? createClusterPanelBackground() : createMainPanelBackground());
 
         TextView mode = (TextView) root.findViewById(R.id.mode_text);
-        mode.setText("待接收导航/巡航信息");
+        mode.setText("");
         mode.setTextSize(scaledSp(13f, scale));
 
         LinearLayout turnRow = (LinearLayout) root.findViewById(R.id.turn_row);
@@ -5545,7 +5545,7 @@ private String getArrowSymbol(TrafficLightParser.Direction direction) {
             modeText.setLayoutParams(lp);
             modeText.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
             if (TextUtils.isEmpty(modeText.getText())) {
-                modeText.setText("待接收导航/巡航信息");
+                modeText.setText("");
             }
         }
 
@@ -5626,7 +5626,7 @@ private String getArrowSymbol(TrafficLightParser.Direction direction) {
             clusterModeText.setLayoutParams(lp);
             clusterModeText.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
             if (TextUtils.isEmpty(clusterModeText.getText())) {
-                clusterModeText.setText("待接收导航/巡航信息");
+                clusterModeText.setText("");
             }
         }
 
@@ -6691,7 +6691,7 @@ private String getArrowSymbol(TrafficLightParser.Direction direction) {
         lp.height = visible ? ViewGroup.LayoutParams.WRAP_CONTENT : 0;
         view.setLayoutParams(lp);
         if (visible) {
-            view.setText("待接收导航/巡航信息");
+            view.setText("");
             view.setTextColor(primaryTextColor());
             view.setTextSize(scaledSp(13f, scale));
             view.setGravity(Gravity.CENTER);
