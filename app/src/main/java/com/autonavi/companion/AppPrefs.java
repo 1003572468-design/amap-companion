@@ -100,7 +100,7 @@ public final class AppPrefs {
     };
     public static final int MIN_OVERLAY_SCALE_PERCENT           = 30;
     public static final int MAX_OVERLAY_SCALE_PERCENT           = 300;
-    public static final int DEFAULT_OVERLAY_SCALE_PERCENT       = 96;
+    public static final int DEFAULT_OVERLAY_SCALE_PERCENT       = 99;
 
     // ═══════════════════════════════════════════════════════════════════════
     //  Static preference accessors
