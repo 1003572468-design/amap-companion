@@ -527,10 +527,10 @@ public class OverlayService extends Service {
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                         | WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR,
                 PixelFormat.TRANSLUCENT);
-        params.gravity = Gravity.BOTTOM | Gravity.START;
-        params.x = dp(0);
-        params.y = 0;
-
+params.gravity = Gravity.TOP | Gravity.LEFT;  // ← 修改这里
+params.x = getSavedOverlayX();
+params.y = getSavedOverlayY();
+		
         android.graphics.Point screenSize = new android.graphics.Point();
         windowManager.getDefaultDisplay().getRealSize(screenSize);
         if (screenSize.x > 0) {
@@ -867,7 +867,7 @@ public class OverlayService extends Service {
         r2lp.topMargin = scaledDp(3, scale);
 
         LinearLayout cruiseLaneBox = (LinearLayout) card.findViewById(R.id.card_cruise_lane_box);
-        LaneBarView cruiseLane = installLaneBar(card, R.id.card_cruise_lane_placeholder, scale, 0.8f, 32, 1, true, true, 1);
+        LaneBarView cruiseLane = installLaneBar(card, R.id.card_cruise_lane_placeholder, scale, 0.8f, 32, 0, true, true, 1);
 
         LinearLayout cruiseLights = (LinearLayout) card.findViewById(R.id.card_cruise_light_row);
 
@@ -909,7 +909,7 @@ public class OverlayService extends Service {
         navEta.setPadding(scaledDp(6, scale), 0, 0, 0);
 
         LinearLayout navLaneBox = (LinearLayout) card.findViewById(R.id.lane_section);
-        LaneBarView navLane = installLaneBar(card, R.id.lane_bar_placeholder, scale, 0.7f, 36, 1, true, true, 1);
+        LaneBarView navLane = installLaneBar(card, R.id.lane_bar_placeholder, scale, 0.8f, 32, 0, true, true, 1);
         View navDetailRow = (View) navLaneBox.getParent();
         if (navDetailRow != null) {
             ViewGroup.LayoutParams detailParams = navDetailRow.getLayoutParams();
